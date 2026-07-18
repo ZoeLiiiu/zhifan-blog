@@ -157,6 +157,7 @@ export default function Home() {
               key={category}
               className={`filter-pill ${activeCategory === category ? "selected" : ""}`}
               onClick={() => selectCategory(category)}
+              data-filter={category}
               role="tab"
               aria-selected={activeCategory === category}
             >
@@ -167,7 +168,14 @@ export default function Home() {
 
         <div className="article-grid">
           {filteredArticles.map((article, index) => (
-            <article className={`article-card card-${article.accent} ${index === 0 ? "featured" : ""}`} key={article.id}>
+            <article
+              className={`article-card card-${article.accent} ${index === 0 ? "featured" : ""}`}
+              key={article.id}
+              data-article-id={article.id}
+              data-article-category={article.category}
+              data-article-title={article.title}
+              data-article-body={article.body}
+            >
               <div className="card-topline">
                 <span className="category-dot"><i /></span>
                 <span>{article.category}</span>
@@ -177,7 +185,12 @@ export default function Home() {
               <p>{article.excerpt}</p>
               <div className="card-footer">
                 <span>{article.readTime}</span>
-                <button className="read-link" onClick={() => setSelectedArticle(article)} aria-label={`阅读：${article.title}`}>
+                <button
+                  className="read-link"
+                  onClick={() => setSelectedArticle(article)}
+                  data-read-article={article.id}
+                  aria-label={`阅读：${article.title}`}
+                >
                   阅读全文 <span aria-hidden="true">↗</span>
                 </button>
               </div>
@@ -185,16 +198,23 @@ export default function Home() {
           ))}
         </div>
 
-        {selectedArticle && (
-          <div className="article-preview" aria-live="polite">
-            <div>
-              <p className="eyebrow"><span /> 正在阅读 · {selectedArticle.category}</p>
-              <h3>{selectedArticle.title}</h3>
-              <p>{selectedArticle.body}</p>
-            </div>
-            <button className="close-preview" onClick={() => setSelectedArticle(null)} aria-label="关闭文章预览">×</button>
+        <div className="article-preview" aria-live="polite" hidden={!selectedArticle} data-article-preview>
+          <div>
+            <p className="eyebrow">
+              <span /> <b data-preview-meta>{selectedArticle ? `正在阅读 · ${selectedArticle.category}` : ""}</b>
+            </p>
+            <h3 data-preview-title>{selectedArticle?.title ?? ""}</h3>
+            <p data-preview-body>{selectedArticle?.body ?? ""}</p>
           </div>
-        )}
+          <button
+            className="close-preview"
+            onClick={() => setSelectedArticle(null)}
+            data-close-preview
+            aria-label="关闭文章预览"
+          >
+            ×
+          </button>
+        </div>
       </section>
 
       <section className="categories section-shell" id="categories">
@@ -206,7 +226,12 @@ export default function Home() {
         </div>
         <div className="category-grid">
           {categories.map((item, index) => (
-            <button className={`category-card category-${categoryColors[item.label]}`} key={item.label} onClick={() => selectCategory(item.label)}>
+            <button
+              className={`category-card category-${categoryColors[item.label]}`}
+              key={item.label}
+              onClick={() => selectCategory(item.label)}
+              data-category-trigger={item.label}
+            >
               <span className="category-index">0{index + 1}</span>
               <span className="category-icon" aria-hidden="true">{index === 0 ? "↗" : index === 1 ? "↺" : "✧"}</span>
               <strong>{item.label}</strong>
@@ -237,7 +262,7 @@ export default function Home() {
           <p className="eyebrow light"><span /> 每月一封</p>
           <h2>把值得回看的文字，<br /><em>放进你的收件箱。</em></h2>
         </div>
-        <form className="subscribe-form" onSubmit={(event) => event.preventDefault()}>
+        <form className="subscribe-form" onSubmit={(event) => event.preventDefault()} data-subscribe-form>
           <label className="sr-only" htmlFor="email">你的邮箱</label>
           <input id="email" type="email" placeholder="输入你的邮箱地址" required />
           <button type="submit">订阅 <span aria-hidden="true">→</span></button>
