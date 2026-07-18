@@ -10,8 +10,9 @@
     "build": "vinext build",
     "export:static": "node scripts/export-static.mjs",
     "start": "vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern site --ignore-pattern .next",
+    "test": "npm run build && npm run export:static && node --test tests/rendered-html.test.mjs",
+    "test:browser": "node tests/browser-scroll.mjs",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern site --ignore-pattern docs --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
