@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(fileURLToPath(new URL("../site/", import.meta.url)));
 const chromePath = process.env.CHROME_PATH ?? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+const remoteUrl = process.env.TEST_URL;
 
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
@@ -114,7 +115,7 @@ async function state(cdp) {
   })`);
 }
 
-const server = createServer(async (request, response) => {
+const server = remoteUrl ? null : createServer(async (request, response) => {
   try {
     const requestPath = decodeURIComponent(new URL(request.url, "http://localhost").pathname);
     const relativePath = requestPath === "/" ? "index.html" : requestPath.replace(/^\/+/, "");
@@ -134,8 +135,12 @@ let cdp;
 let userData;
 
 try {
-  const [sitePort, debugPort] = await Promise.all([freePort(), freePort()]);
-  await new Promise((resolvePromise) => server.listen(sitePort, "127.0.0.1", resolvePromise));
+  const debugPort = await freePort();
+  let sitePort;
+  if (server) {
+    sitePort = await freePort();
+    await new Promise((resolvePromise) => server.listen(sitePort, "127.0.0.1", resolvePromise));
+  }
   userData = await mkdtemp(join(process.env.TEMP ?? process.env.TMP ?? ".", "zhifan-chrome-"));
   chrome = spawn(chromePath, [
     "--headless=new",
@@ -163,13 +168,14 @@ try {
   await cdp.send("Page.enable");
   await cdp.send("Runtime.enable");
   await cdp.send("Network.enable");
-  await cdp.send("Page.navigate", { url: `http://127.0.0.1:${sitePort}/` });
+  await cdp.send("Page.navigate", { url: remoteUrl ?? `http://127.0.0.1:${sitePort}/` });
   await waitForPage(cdp);
   await delay(250);
 
   const initial = await state(cdp);
   assert.equal(initial.behavior, "auto");
-  assert.deepEqual(initial.scripts.map((script) => new URL(script, "http://localhost").pathname), ["/static.js"]);
+  assert.equal(initial.scripts.length, 1);
+  assert.match(initial.scripts[0], /\/static\.js(?:[?#]|$)/);
   assert.equal(initial.rscRequest, false);
 
   await evaluate(cdp, "document.querySelector('a[href=\\\"#latest\\\"]').click()");
@@ -234,6 +240,6 @@ try {
     await Promise.race([once(chrome, "exit"), delay(5000)]);
     if (chrome.exitCode === null) chrome.kill();
   }
-  await new Promise((resolvePromise) => server.close(() => resolvePromise()));
+  if (server) await new Promise((resolvePromise) => server.close(() => resolvePromise()));
   if (userData) await rm(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
 }
