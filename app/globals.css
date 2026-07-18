@@ -16,7 +16,8 @@
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+/* 让鼠标滚轮保持原生节奏；锚点跳转由路由显式控制，避免动画与滚轮叠加。 */
+html { scroll-behavior: auto; }
 body {
   margin: 0;
   background: var(--paper);
