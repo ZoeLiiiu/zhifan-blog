@@ -1,14 +1,13 @@
-# vinext-starter
+# 知返
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+知返是一个简约的小型个人博客，记录专业经验、项目复盘与生活随想。
+公开博客与管理后台运行在 Sites/Cloudflare Worker 上，文章使用 D1 持久化。
 
 ## Prerequisites
 
 - Node.js `>=22.13.0`
 
-## Quick Start
+## 本地开发
 
 ```bash
 npm install
@@ -16,18 +15,20 @@ npm run dev
 npm run build
 ```
 
-This starter does not use `wrangler.jsonc`.
+首次使用 D1 时运行 `npm run db:generate` 生成迁移。管理后台地址为 `/admin`，
+需要 Sites 注入的 ChatGPT 登录身份，并将管理员邮箱配置到 `ADMIN_EMAILS`。
 
-## Included Shape
+GitHub Pages 地址是只读静态镜像；文章的新增、编辑、删除请在 Sites 主站的管理后台完成。
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+## 功能
 
-## Workspace Auth Headers
+- `/admin`：登录保护的文章管理后台
+- `/api/articles`：公开文章接口，只返回已发布内容
+- `/api/admin/articles`：管理员 CRUD 接口
+- `db/schema.ts` 与 `drizzle/`：文章表和 D1 迁移
+- `.openai/hosting.json`：声明 `DB` D1 绑定
+
+## 身份与权限
 
 OpenAI workspace sites can read the current user's email from
 `oai-authenticated-user-email`.
@@ -58,7 +59,7 @@ export default async function Home() {
 }
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+## Sites 登录
 
 Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
 optional or required ChatGPT sign-in:
@@ -85,12 +86,13 @@ or enforce explicit server-side membership or allowlist checks.
 Use SIWC for account pages, user-specific dashboards, saved records, and write
 actions tied to the current ChatGPT user. Leave public content anonymous.
 
-## Useful Commands
+## 常用命令
 
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+- `npm run dev`：启动本地开发
+- `npm run build`：构建 Sites Worker
+- `npm test`：构建并检查静态镜像
+- `npm run lint`：运行代码检查
+- `npm run db:generate`：生成 D1 迁移
 
 ## Learn More
 

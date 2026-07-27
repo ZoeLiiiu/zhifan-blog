@@ -8,9 +8,21 @@ const clientRoot = join(buildRoot, "client");
 const outputRoot = join(root, "site");
 
 await rm(outputRoot, { recursive: true, force: true });
-await mkdir(join(outputRoot, "assets"), { recursive: true });
+let worker;
+try {
+  worker = (await import(`${pathToFileURL(join(buildRoot, "server", "index.js")).href}?static=${Date.now()}`)).default;
+} catch (error) {
+  if (String(error).includes("cloudflare:")) {
+    // 加入 D1/SIWC 后，动态路由只能在 Sites Worker 中运行；GitHub Pages
+    // 继续发布仓库里最后一次通过验证的静态镜像。
+    await cp(join(root, "docs"), outputRoot, { recursive: true });
+    console.log("已复制 GitHub Pages 静态镜像；动态管理后台请使用 Sites 地址。");
+    process.exit(0);
+  }
+  throw error;
+}
 
-const worker = (await import(`${pathToFileURL(join(buildRoot, "server", "index.js")).href}?static=${Date.now()}`)).default;
+await mkdir(join(outputRoot, "assets"), { recursive: true });
 const response = await worker.fetch(
   new Request("http://localhost/"),
   { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
