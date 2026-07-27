@@ -5,10 +5,11 @@ import test from "node:test";
 const siteRoot = new URL("../site/", import.meta.url);
 
 test("导出可直接发布的知返静态博客", async () => {
-  const [html, notFoundHtml, script] = await Promise.all([
+  const [html, notFoundHtml, script, articles] = await Promise.all([
     readFile(new URL("index.html", siteRoot), "utf8"),
     readFile(new URL("404.html", siteRoot), "utf8"),
     readFile(new URL("static.js", siteRoot), "utf8"),
+    readFile(new URL("articles.json", siteRoot), "utf8").then(JSON.parse),
   ]);
 
   for (const document of [html, notFoundHtml]) {
@@ -26,5 +27,8 @@ test("导出可直接发布的知返静态博客", async () => {
   assert.match(script, /scrollRestoration\s*=\s*"auto"/);
   assert.match(script, /scrollIntoView/);
   assert.match(script, /data-read-article/);
+  assert.match(script, /fetch\(`\.\/articles\.json/);
   assert.doesNotMatch(script, /addEventListener\(["'](?:wheel|popstate|hashchange)/);
+  assert.equal(articles.length, 3);
+  assert.ok(articles.every((article) => article.status === "published"));
 });

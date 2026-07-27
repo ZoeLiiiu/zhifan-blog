@@ -1,7 +1,8 @@
 # 知返
 
 知返是一个简约的小型个人博客，记录专业经验、项目复盘与生活随想。
-公开博客与管理后台运行在 Sites/Cloudflare Worker 上，文章使用 D1 持久化。
+公开博客由 GitHub Pages 托管；私有管理后台运行在 ECS 上，并保留
+Sites/Cloudflare Worker 版本作为兼容部署。
 
 ## Prerequisites
 
@@ -18,7 +19,23 @@ npm run build
 首次使用 D1 时运行 `npm run db:generate` 生成迁移。管理后台地址为 `/admin`，
 需要 Sites 注入的 ChatGPT 登录身份，并将管理员邮箱配置到 `ADMIN_EMAILS`。
 
-GitHub Pages 地址是只读静态镜像；文章的新增、编辑、删除请在 Sites 主站的管理后台完成。
+原有 Sites 后台仍可作为兼容版本使用；日常文章管理以 ECS 私有后台为准。
+
+## ECS 私有后台与免费公开发布
+
+不购买域名时，公开博客继续由 GitHub Pages 免费托管，ECS 只运行绑定在
+`127.0.0.1:3210` 的私有管理后台。管理员通过 SSH 加密通道访问后台；每次保存、
+发布、归档或删除文章后，后台会把公开文章写入 `docs/articles.json` 并推送到
+GitHub，GitHub Pages 随后自动更新。
+
+本地打开后台：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\open-ecs-admin.ps1
+```
+
+保持终端窗口开启，然后访问 `http://127.0.0.1:3210`。登录信息保存在本地忽略文件
+`.ecs-admin-login.txt` 中，不会提交到 GitHub。
 
 ## 功能
 

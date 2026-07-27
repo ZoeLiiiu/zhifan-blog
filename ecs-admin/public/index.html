@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>知返 · 管理后台</title>
+    <link rel="stylesheet" href="./admin.css" />
+  </head>
+  <body>
+    <main class="login-shell" data-login-view>
+      <section class="login-card">
+        <p class="eyebrow"><span></span> ZHIFAN / ADMIN</p>
+        <h1>回到文字里。</h1>
+        <p>管理后台仅通过服务器安全通道访问。</p>
+        <form data-login-form>
+          <label>
+            管理员账号
+            <input name="username" autocomplete="username" value="zhifan" required />
+          </label>
+          <label>
+            管理密码
+            <input name="password" type="password" autocomplete="current-password" required />
+          </label>
+          <button class="button button-primary" type="submit">进入后台 <span>→</span></button>
+          <p class="form-message" data-login-message aria-live="polite"></p>
+        </form>
+      </section>
+    </main>
+
+    <main class="admin-shell" data-admin-view hidden>
+      <aside class="sidebar">
+        <div class="brand"><span class="brand-mark"><i></i><i></i></span><span><strong>知返</strong><small>ZHIFAN / ADMIN</small></span></div>
+        <nav>
+          <button class="nav-active" type="button">文章管理 <span data-total-count>0</span></button>
+          <button type="button" data-new-article>新建文章 <span>＋</span></button>
+          <button type="button" data-publish-all>重新发布 <span>↗</span></button>
+        </nav>
+        <div class="sidebar-note"><strong>慢慢写，也认真发布。</strong><span>公开文章会自动同步到 GitHub Pages。</span></div>
+        <button class="signout" type="button" data-logout>退出登录</button>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow"><span></span> CONTENT STUDIO</p>
+            <h1>文章管理</h1>
+          </div>
+          <div class="publish-state" data-publish-state>等待操作</div>
+        </header>
+
+        <div class="content-layout">
+          <section class="article-panel">
+            <div class="panel-tools">
+              <input type="search" placeholder="搜索文章…" aria-label="搜索文章" data-search />
+              <select aria-label="筛选状态" data-filter>
+                <option value="all">全部状态</option>
+                <option value="published">已发布</option>
+                <option value="draft">草稿</option>
+                <option value="archived">已归档</option>
+              </select>
+            </div>
+            <div class="article-list" data-article-list></div>
+          </section>
+
+          <section class="editor-panel">
+            <div class="editor-heading">
+              <div>
+                <p class="eyebrow"><span></span> EDITOR</p>
+                <h2 data-editor-title>新建文章</h2>
+              </div>
+              <button class="text-button danger" type="button" data-delete hidden>删除文章</button>
+            </div>
+
+            <form data-editor-form>
+              <div class="field-row">
+                <label>分类
+                  <select name="category" required>
+                    <option value="专业经验">专业经验</option>
+                    <option value="项目复盘">项目复盘</option>
+                    <option value="生活随想">生活随想</option>
+                  </select>
+                </label>
+                <label>显示日期
+                  <input name="date" placeholder="2026.07.27" required maxlength="32" />
+                </label>
+                <label>阅读时间
+                  <input name="readTime" placeholder="6 分钟" required maxlength="32" />
+                </label>
+              </div>
+
+              <label>标题
+                <input name="title" placeholder="写下这篇文章的标题" required maxlength="160" />
+              </label>
+              <label>摘要
+                <textarea name="excerpt" rows="3" placeholder="用一两句话介绍这篇文章" maxlength="500"></textarea>
+              </label>
+              <label>正文
+                <textarea name="body" rows="13" placeholder="从这里开始写…" maxlength="50000"></textarea>
+              </label>
+
+              <div class="field-row">
+                <label>配色
+                  <select name="accent">
+                    <option value="mint">薄荷绿</option>
+                    <option value="coral">珊瑚橙</option>
+                    <option value="sky">天空蓝</option>
+                  </select>
+                </label>
+                <label>状态
+                  <select name="status">
+                    <option value="draft">草稿</option>
+                    <option value="published">已发布</option>
+                    <option value="archived">已归档</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="editor-actions">
+                <p data-editor-message aria-live="polite"></p>
+                <div>
+                  <button class="button button-secondary" type="submit">保存更改</button>
+                  <button class="button button-primary" type="button" data-publish>发布文章 <span>↗</span></button>
+                </div>
+              </div>
+            </form>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <dialog data-delete-dialog>
+      <p class="eyebrow"><span></span> 确认删除</p>
+      <h2>要删除这篇文章吗？</h2>
+      <p data-delete-copy></p>
+      <div>
+        <button class="button button-secondary" type="button" data-cancel-delete>先不删</button>
+        <button class="button button-danger" type="button" data-confirm-delete>确认删除</button>
+      </div>
+    </dialog>
+
+    <script src="./admin.js" defer></script>
+  </body>
+</html>
