@@ -1,4 +1,24 @@
-// Intentionally empty by default.
-// Add Drizzle tables here when the site actually needs a database.
-// See examples/d1/db/schema.ts for an opt-in example.
-export {};
+import { sql } from "drizzle-orm";
+import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+export const articles = sqliteTable(
+  "articles",
+  {
+    id: text("id").primaryKey(),
+    category: text("category").notNull(),
+    date: text("date").notNull(),
+    readTime: text("read_time").notNull(),
+    title: text("title").notNull(),
+    excerpt: text("excerpt").notNull().default(""),
+    body: text("body").notNull().default(""),
+    accent: text("accent").notNull().default("mint"),
+    status: text("status").notNull().default("draft"),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    publishedAt: text("published_at"),
+  },
+  (table) => ({
+    statusIndex: index("articles_status_idx").on(table.status),
+    updatedAtIndex: index("articles_updated_at_idx").on(table.updatedAt),
+  }),
+);
