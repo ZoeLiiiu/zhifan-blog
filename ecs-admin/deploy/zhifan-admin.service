@@ -1,0 +1,23 @@
+[Unit]
+Description=知返博客私有管理后台
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zhifan
+Group=zhifan
+WorkingDirectory=/srv/zhifan-repo
+EnvironmentFile=/etc/zhifan-admin.env
+ExecStart=/usr/bin/node /srv/zhifan-repo/ecs-admin/server.mjs
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/zhifan-admin /var/backups/zhifan-admin /srv/zhifan-repo
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
