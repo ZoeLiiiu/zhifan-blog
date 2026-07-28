@@ -2,9 +2,9 @@ import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { articles } from "@/db/schema";
 import {
-  isArticleAccent,
-  isArticleCategory,
   isArticleStatus,
+  normalizeArticleAccent,
+  normalizeArticleCategory,
   seedArticles,
   type Article,
   type ArticleStatus,
@@ -13,15 +13,16 @@ import {
 export type ArticleRow = typeof articles.$inferSelect;
 
 export function toArticle(row: ArticleRow): Article {
+  const category = normalizeArticleCategory(row.category);
   return {
     id: row.id,
-    category: isArticleCategory(row.category) ? row.category : "专业经验",
+    category,
     date: row.date,
     readTime: row.readTime,
     title: row.title,
     excerpt: row.excerpt,
     body: row.body,
-    accent: isArticleAccent(row.accent) ? row.accent : "mint",
+    accent: normalizeArticleAccent(category, row.accent),
     status: isArticleStatus(row.status) ? row.status : "draft",
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

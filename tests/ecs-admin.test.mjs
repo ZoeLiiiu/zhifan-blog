@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -42,6 +42,13 @@ test("ECS 私有后台支持登录、文章 CRUD 和持久化", async (context) 
   const salt = randomBytes(16);
   const hash = scryptSync(password, salt, 32);
   const passwordHash = `scrypt$${salt.toString("base64url")}$${hash.toString("base64url")}`;
+  const seedArticles = JSON.parse(await readFile(new URL("../content/articles.json", import.meta.url), "utf8"));
+  const legacyArticles = seedArticles.map((article, index) => {
+    if (index === 0) return { ...article, category: "专业经验", accent: "coral" };
+    if (index === 1) return { ...article, category: "项目复盘", accent: "sky" };
+    return article;
+  });
+  await writeFile(dataFile, `${JSON.stringify(legacyArticles, null, 2)}\n`, "utf8");
   const child = spawn(process.execPath, [fileURLToPath(new URL("../ecs-admin/server.mjs", import.meta.url))], {
     cwd: fileURLToPath(new URL("../", import.meta.url)),
     env: {
@@ -81,12 +88,13 @@ test("ECS 私有后台支持登录、文章 CRUD 和持久化", async (context) 
 
   const initial = await fetch(`${baseUrl}/api/articles`, { headers: { Cookie: cookie } }).then((response) => response.json());
   assert.equal(initial.articles.length, 3);
+  assert.ok(initial.articles.slice(0, 2).every((article) => article.category === "项目经验" && article.accent === "mint"));
 
   const create = await fetch(`${baseUrl}/api/articles`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: cookie },
     body: JSON.stringify({
-      category: "专业经验",
+      category: "项目经验",
       date: "2026.07.27",
       readTime: "3 分钟",
       title: "后台自动化测试草稿",
@@ -116,4 +124,5 @@ test("ECS 私有后台支持登录、文章 CRUD 和持久化", async (context) 
 
   const persisted = JSON.parse(await readFile(dataFile, "utf8"));
   assert.equal(persisted.length, 3);
+  assert.ok(persisted.slice(0, 2).every((article) => article.category === "项目经验" && article.accent === "mint"));
 });

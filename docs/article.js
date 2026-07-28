@@ -3,6 +3,13 @@
   const articleElement = document.querySelector("[data-article]");
   const errorElement = document.querySelector("[data-error]");
   const articleId = new URLSearchParams(window.location.search).get("id")?.trim() ?? "";
+  const normalizeArticle = (article) => {
+    const category = article.category === "生活随想" ? "生活随想" : "项目经验";
+    const accent = category === "项目经验"
+      ? "mint"
+      : ["mint", "coral", "sky"].includes(article.accent) ? article.accent : "sky";
+    return { ...article, category, accent };
+  };
 
   const showError = () => {
     if (loading) loading.hidden = true;
@@ -33,11 +40,12 @@
       if (!response.ok) throw new Error(`文章数据加载失败：${response.status}`);
       const articles = await response.json();
       if (!Array.isArray(articles)) throw new Error("文章数据格式不正确");
-      const article = articles.find((item) => item.id === articleId && (!item.status || item.status === "published"));
-      if (!article) {
+      const matchedArticle = articles.find((item) => item.id === articleId && (!item.status || item.status === "published"));
+      if (!matchedArticle) {
         showError();
         return;
       }
+      const article = normalizeArticle(matchedArticle);
 
       const accent = ["mint", "coral", "sky"].includes(article.accent) ? article.accent : "mint";
       articleElement.className = `reader-article accent-${accent}`;

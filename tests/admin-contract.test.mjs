@@ -5,10 +5,11 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("管理后台具备持久化、鉴权和完整 CRUD 契约", async () => {
-  const [hosting, schema, migration, adminPage, adminList, adminItem, publicApi, articleServer, home, ecsAdminHtml, ecsAdminScript] = await Promise.all([
+  const [hosting, schema, migration, categoryMigration, adminPage, adminList, adminItem, publicApi, articleServer, home, ecsAdminHtml, ecsAdminScript] = await Promise.all([
     read(".openai/hosting.json"),
     read("db/schema.ts"),
     read("drizzle/0000_skinny_jack_murdock.sql"),
+    read("drizzle/0001_merge_article_categories.sql"),
     read("app/admin/page.tsx"),
     read("app/api/admin/articles/route.ts"),
     read("app/api/admin/articles/[id]/route.ts"),
@@ -25,6 +26,8 @@ test("管理后台具备持久化、鉴权和完整 CRUD 契约", async () => {
   assert.match(migration, /slow-work/);
   assert.match(migration, /small-launch/);
   assert.match(migration, /window-light/);
+  assert.match(categoryMigration, /SET `category` = '项目经验'/);
+  assert.match(categoryMigration, /`accent` = 'mint'/);
   assert.match(adminPage, /force-dynamic/);
   assert.match(adminList, /authorizeAdminRequest/);
   assert.match(adminList, /export async function GET/);
@@ -37,8 +40,16 @@ test("管理后台具备持久化、鉴权和完整 CRUD 契约", async () => {
   assert.match(home, /Array\.isArray\(payload\?\.articles\)/);
   assert.match(home, /const pageSize = 6/);
   assert.match(home, /article\.html\?id=/);
-  assert.doesNotMatch(home, /三条线索|data-category-trigger|article-preview/);
+  assert.match(home, /categories\.length/);
+  assert.doesNotMatch(home, /专业经验|项目复盘|关于知返|每月一封/);
+  assert.doesNotMatch(home, /#about|#subscribe|三条线索|data-category-trigger|article-preview/);
   assert.match(ecsAdminHtml, /data-accent-preview/);
   assert.match(ecsAdminHtml, /用于文章卡片及正文标题区/);
+  assert.match(ecsAdminHtml, /value="项目经验"/);
+  assert.match(ecsAdminHtml, /value="生活随想"/);
+  assert.doesNotMatch(ecsAdminHtml, /value="专业经验"|value="项目复盘"/);
   assert.match(ecsAdminScript, /updateAccentPreview/);
+  assert.match(ecsAdminScript, /categoryAccents = \{ 项目经验: "mint", 生活随想: "sky" \}/);
+  assert.match(articleServer, /normalizeArticleCategory/);
+  assert.match(articleServer, /normalizeArticleAccent/);
 });

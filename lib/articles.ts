@@ -1,10 +1,11 @@
-export type Category = "全部" | "专业经验" | "项目复盘" | "生活随想";
+export type Category = "全部" | "项目经验" | "生活随想";
+export type ArticleCategory = Exclude<Category, "全部">;
 
 export type ArticleStatus = "draft" | "published" | "archived";
 
 export type Article = {
   id: string;
-  category: Exclude<Category, "全部">;
+  category: ArticleCategory;
   date: string;
   readTime: string;
   title: string;
@@ -20,7 +21,7 @@ export type Article = {
 export const seedArticles: Article[] = [
   {
     id: "slow-work",
-    category: "专业经验",
+    category: "项目经验",
     date: "2026.07.12",
     readTime: "6 分钟",
     title: "把复杂的事，讲成别人听得懂的事",
@@ -31,13 +32,13 @@ export const seedArticles: Article[] = [
   },
   {
     id: "small-launch",
-    category: "项目复盘",
+    category: "项目经验",
     date: "2026.06.28",
     readTime: "8 分钟",
     title: "一个小功能上线后，我学会了先问为什么",
     excerpt: "复盘不是寻找谁做错了，而是找出系统怎样才能更温柔地工作。",
     body: "这次上线最有价值的部分，不是交付了多少代码，而是让我们看见了需求、节奏和反馈之间的缝隙。下一次，我会把验证提前一周。",
-    accent: "coral",
+    accent: "mint",
     status: "published",
   },
   {
@@ -54,28 +55,35 @@ export const seedArticles: Article[] = [
 ];
 
 export const categories: {
-  label: Exclude<Category, "全部">;
+  label: ArticleCategory;
   note: string;
 }[] = [
-  { label: "专业经验", note: "方法、协作与表达" },
-  { label: "项目复盘", note: "做过的事与学到的课" },
+  { label: "项目经验", note: "方法、协作、实践与复盘" },
   { label: "生活随想", note: "慢下来，也继续生长" },
 ];
 
-export const categoryColors: Record<Exclude<Category, "全部">, string> = {
-  专业经验: "mint",
-  项目复盘: "coral",
+export const categoryColors: Record<ArticleCategory, Article["accent"]> = {
+  项目经验: "mint",
   生活随想: "sky",
 };
 
 export const articleCategories = categories.map((item) => item.label);
 
-export function isArticleCategory(value: unknown): value is Exclude<Category, "全部"> {
-  return typeof value === "string" && articleCategories.includes(value as Exclude<Category, "全部">);
+export function isArticleCategory(value: unknown): value is ArticleCategory {
+  return typeof value === "string" && articleCategories.includes(value as ArticleCategory);
+}
+
+export function normalizeArticleCategory(value: unknown): ArticleCategory {
+  return value === "生活随想" ? "生活随想" : "项目经验";
 }
 
 export function isArticleAccent(value: unknown): value is Article["accent"] {
   return value === "mint" || value === "coral" || value === "sky";
+}
+
+export function normalizeArticleAccent(category: ArticleCategory, value: unknown): Article["accent"] {
+  if (category === "项目经验") return "mint";
+  return isArticleAccent(value) ? value : categoryColors[category];
 }
 
 export function isArticleStatus(value: unknown): value is ArticleStatus {

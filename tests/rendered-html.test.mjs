@@ -19,14 +19,18 @@ test("导出可扩展的知返静态博客与独立文章页", async () => {
   for (const document of [html, notFoundHtml]) {
     assert.match(document, /<title>知返/);
     assert.match(document, /id="latest"/);
-    assert.match(document, /id="about"/);
     assert.match(document, /href="#latest"/);
-    assert.match(document, /href="#about"/);
     assert.match(document, /data-filter="全部"/);
+    assert.match(document, /data-filter="项目经验"/);
+    assert.match(document, /data-filter="生活随想"/);
     assert.match(document, /aria-pressed="true"/);
     assert.match(document, /data-load-more/);
     assert.match(document, /\.\/article\.html\?id=/);
     assert.match(document, /<script src="\.\/static\.js" defer><\/script>/);
+    assert.match(document, /<strong>02<\/strong><span>个长期栏目<\/span>/);
+    assert.equal((document.match(/data-filter=/g) || []).length, 3);
+    assert.doesNotMatch(document, /专业经验|项目复盘|关于知返|每月一封/);
+    assert.doesNotMatch(document, /id="about"|id="subscribe"|href="#about"|href="#subscribe"|data-subscribe-form/);
     assert.doesNotMatch(document, /三条线索|data-category-trigger|data-article-preview/);
     assert.doesNotMatch(document, /__VINEXT|\.rsc(?:\b|[?"'])|modulepreload/i);
   }
@@ -34,6 +38,8 @@ test("导出可扩展的知返静态博客与独立文章页", async () => {
   assert.equal((html.match(/data-article-id=/g) || []).length, 6);
   assert.equal(articles.length, 7);
   assert.ok(articles.every((article) => article.status === "published"));
+  assert.deepEqual([...new Set(articles.map((article) => article.category))].sort(), ["生活随想", "项目经验"]);
+  assert.ok(articles.filter((article) => article.category === "项目经验").every((article) => article.accent === "mint"));
 
   assert.match(script, /scrollRestoration\s*=\s*"auto"/);
   assert.match(script, /const pageSize = 6/);
@@ -41,7 +47,9 @@ test("导出可扩展的知返静态博客与独立文章页", async () => {
   assert.match(script, /article\.html\?id=/);
   assert.match(script, /aria-pressed/);
   assert.match(script, /fetch\(`\.\/articles\.json/);
+  assert.match(script, /category === "项目经验"/);
   assert.doesNotMatch(script, /data-article-preview|data-category-trigger/);
+  assert.doesNotMatch(script, /data-subscribe-form/);
   assert.doesNotMatch(script, /addEventListener\(["'](?:wheel|popstate|hashchange)/);
 
   assert.match(siteCss, /\.card-mint\s*\{/);
@@ -55,6 +63,7 @@ test("导出可扩展的知返静态博客与独立文章页", async () => {
   assert.match(articleScript, /new URLSearchParams/);
   assert.match(articleScript, /item\.status === "published"/);
   assert.match(articleScript, /textContent = article\.body/);
+  assert.match(articleScript, /category === "项目经验"/);
   assert.doesNotMatch(articleScript, /innerHTML/);
   assert.match(articleCss, /white-space:\s*pre-wrap/);
   assert.match(articleCss, /\.reader-article\.accent-coral/);

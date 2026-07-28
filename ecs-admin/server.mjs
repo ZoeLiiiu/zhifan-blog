@@ -37,7 +37,7 @@ const adminUsername = process.env.ADMIN_USERNAME || "zhifan";
 const passwordHash = process.env.ADMIN_PASSWORD_HASH || "";
 const sessions = new Map();
 const loginAttempts = new Map();
-const categories = new Set(["专业经验", "项目复盘", "生活随想"]);
+const categories = new Set(["项目经验", "生活随想"]);
 const statuses = new Set(["draft", "published", "archived"]);
 const accents = new Set(["mint", "coral", "sky"]);
 const maxBodyBytes = 1024 * 1024;
@@ -152,13 +152,22 @@ function cleanText(value, maxLength, required = false) {
   return text;
 }
 
+function normalizeStoredArticle(article) {
+  const category = article?.category === "生活随想" ? "生活随想" : "项目经验";
+  const accent = category === "项目经验"
+    ? "mint"
+    : accents.has(article?.accent) ? article.accent : "sky";
+  return { ...article, category, accent };
+}
+
 function parseArticle(payload, existing = null) {
   const category = payload.category ?? existing?.category;
   const status = payload.status ?? existing?.status ?? "draft";
-  const accent = payload.accent ?? existing?.accent ?? "mint";
+  const requestedAccent = payload.accent ?? existing?.accent ?? "mint";
   if (!categories.has(category)) throw Object.assign(new Error("请选择有效的文章分类"), { statusCode: 400 });
   if (!statuses.has(status)) throw Object.assign(new Error("请选择有效的文章状态"), { statusCode: 400 });
-  if (!accents.has(accent)) throw Object.assign(new Error("请选择有效的文章配色"), { statusCode: 400 });
+  if (!accents.has(requestedAccent)) throw Object.assign(new Error("请选择有效的文章配色"), { statusCode: 400 });
+  const accent = category === "项目经验" ? "mint" : requestedAccent;
 
   const article = {
     id: existing?.id || `article-${randomUUID()}`,
@@ -191,7 +200,17 @@ async function readArticles() {
   await ensureDataFile();
   const parsed = JSON.parse(await readFile(dataFile, "utf8"));
   if (!Array.isArray(parsed)) throw new Error("文章数据库格式不正确");
-  return parsed;
+  return parsed.map(normalizeStoredArticle);
+}
+
+async function migrateLegacyArticles() {
+  await ensureDataFile();
+  const parsed = JSON.parse(await readFile(dataFile, "utf8"));
+  if (!Array.isArray(parsed)) throw new Error("文章数据库格式不正确");
+  const normalized = parsed.map(normalizeStoredArticle);
+  if (JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+    await writeArticles(normalized);
+  }
 }
 
 async function backupArticles() {
@@ -423,7 +442,7 @@ const server = createServer(async (request, response) => {
   }
 });
 
-await ensureDataFile();
+await migrateLegacyArticles();
 server.listen(port, host, () => {
   console.log(`知返管理后台已启动：http://${host}:${port}`);
 });
