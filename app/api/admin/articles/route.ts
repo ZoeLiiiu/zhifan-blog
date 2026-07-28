@@ -61,6 +61,7 @@ export async function POST(request: Request) {
         title: parsed.value.title!,
         excerpt: parsed.value.excerpt ?? "",
         body: parsed.value.body ?? "",
+        contentFormat: parsed.value.contentFormat ?? "markdown",
         accent: normalizeArticleAccent(category, parsed.value.accent),
         status,
         createdAt: now,

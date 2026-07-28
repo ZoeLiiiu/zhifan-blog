@@ -89,6 +89,18 @@ test("ECS 私有后台支持登录、文章 CRUD 和持久化", async (context) 
   const initial = await fetch(`${baseUrl}/api/articles`, { headers: { Cookie: cookie } }).then((response) => response.json());
   assert.equal(initial.articles.length, 3);
   assert.ok(initial.articles.slice(0, 2).every((article) => article.category === "项目经验" && article.accent === "mint"));
+  assert.ok(initial.articles.every((article) => article.contentFormat === "plain"));
+
+  const mediaLibrary = await fetch(`${baseUrl}/api/media`, { headers: { Cookie: cookie } }).then((response) => response.json());
+  assert.equal(mediaLibrary.config.enabled, false);
+  assert.deepEqual(mediaLibrary.config.allowedHosts, []);
+
+  const mediaPolicy = await fetch(`${baseUrl}/api/media/policy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookie },
+    body: JSON.stringify({ kind: "image", name: "test.png", mime: "image/png", size: 1024 }),
+  });
+  assert.equal(mediaPolicy.status, 503);
 
   const create = await fetch(`${baseUrl}/api/articles`, {
     method: "POST",
@@ -100,6 +112,7 @@ test("ECS 私有后台支持登录、文章 CRUD 和持久化", async (context) 
       title: "后台自动化测试草稿",
       excerpt: "这是一篇不会发布到公网的测试草稿。",
       body: "",
+      contentFormat: "markdown",
       accent: "mint",
       status: "draft",
     }),
@@ -107,14 +120,24 @@ test("ECS 私有后台支持登录、文章 CRUD 和持久化", async (context) 
   assert.equal(create.status, 201);
   const created = await create.json();
   assert.equal(created.article.status, "draft");
+  assert.equal(created.article.contentFormat, "markdown");
 
   const update = await fetch(`${baseUrl}/api/articles/${created.article.id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Cookie: cookie },
-    body: JSON.stringify({ status: "published", body: "测试正文" }),
+    body: JSON.stringify({ status: "published", body: "  测试正文\n\n```js\nconst safe = true;\n```  " }),
   });
   assert.equal(update.status, 200);
-  assert.equal((await update.json()).article.status, "published");
+  const updated = await update.json();
+  assert.equal(updated.article.status, "published");
+  assert.ok(updated.article.body.startsWith("  测试正文"));
+
+  const rejectedBase64 = await fetch(`${baseUrl}/api/articles/${created.article.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Cookie: cookie },
+    body: JSON.stringify({ body: "data:image/png;base64,AAAA" }),
+  });
+  assert.equal(rejectedBase64.status, 400);
 
   const remove = await fetch(`${baseUrl}/api/articles/${created.article.id}`, {
     method: "DELETE",

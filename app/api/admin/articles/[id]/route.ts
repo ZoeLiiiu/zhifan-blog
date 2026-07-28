@@ -49,6 +49,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       .update(articles)
       .set({
         ...parsed.value,
+        contentFormat: parsed.value.contentFormat ?? existing.contentFormat,
         category: nextCategory,
         accent: nextAccent,
         status: nextStatus,

@@ -5,7 +5,7 @@ import test from "node:test";
 const siteRoot = new URL("../site/", import.meta.url);
 
 test("导出可扩展的知返静态博客与独立文章页", async () => {
-  const [html, notFoundHtml, script, articles, articleHtml, articleScript, articleCss, siteCss] = await Promise.all([
+  const [html, notFoundHtml, script, articles, articleHtml, articleScript, articleCss, contentCss, contentRenderer, mediaConfig, siteCss] = await Promise.all([
     readFile(new URL("index.html", siteRoot), "utf8"),
     readFile(new URL("404.html", siteRoot), "utf8"),
     readFile(new URL("static.js", siteRoot), "utf8"),
@@ -13,6 +13,9 @@ test("导出可扩展的知返静态博客与独立文章页", async () => {
     readFile(new URL("article.html", siteRoot), "utf8"),
     readFile(new URL("article.js", siteRoot), "utf8"),
     readFile(new URL("article.css", siteRoot), "utf8"),
+    readFile(new URL("content.css", siteRoot), "utf8"),
+    readFile(new URL("content-renderer.js", siteRoot), "utf8"),
+    readFile(new URL("media-config.json", siteRoot), "utf8").then(JSON.parse),
     readFile(new URL("site.css", siteRoot), "utf8"),
   ]);
 
@@ -38,6 +41,7 @@ test("导出可扩展的知返静态博客与独立文章页", async () => {
   assert.equal((html.match(/data-article-id=/g) || []).length, 6);
   assert.equal(articles.length, 7);
   assert.ok(articles.every((article) => article.status === "published"));
+  assert.ok(articles.every((article) => article.contentFormat === "plain"));
   assert.deepEqual([...new Set(articles.map((article) => article.category))].sort(), ["生活随想", "项目经验"]);
   assert.ok(articles.filter((article) => article.category === "项目经验").every((article) => article.accent === "mint"));
 
@@ -60,12 +64,24 @@ test("导出可扩展的知返静态博客与独立文章页", async () => {
   assert.match(articleHtml, /data-article/);
   assert.match(articleHtml, /data-body/);
   assert.match(articleHtml, /data-error/);
+  assert.match(articleHtml, /content-renderer\.js/);
+  assert.match(articleHtml, /content\.css/);
+  assert.match(articleHtml, /Content-Security-Policy/);
+  assert.match(articleHtml, /frame-src 'none'/);
   assert.match(articleScript, /new URLSearchParams/);
   assert.match(articleScript, /item\.status === "published"/);
-  assert.match(articleScript, /textContent = article\.body/);
+  assert.match(articleScript, /ZhifanContent\.renderContent/);
+  assert.match(articleScript, /media-config\.json/);
   assert.match(articleScript, /category === "项目经验"/);
   assert.doesNotMatch(articleScript, /innerHTML/);
-  assert.match(articleCss, /white-space:\s*pre-wrap/);
+  assert.match(contentCss, /\.rich-content\.is-plain/);
+  assert.match(contentCss, /white-space:\s*pre-wrap/);
+  assert.match(contentCss, /\.content-code-block/);
+  assert.match(contentCss, /\.content-video/);
+  assert.match(contentRenderer, /DOMPurify/);
+  assert.match(contentRenderer, /javascript:/);
+  assert.match(contentRenderer, /ZhifanContent/);
+  assert.deepEqual(mediaConfig.allowedHosts, []);
   assert.match(articleCss, /\.reader-article\.accent-coral/);
   assert.match(articleCss, /\.reader-article\.accent-sky/);
 });

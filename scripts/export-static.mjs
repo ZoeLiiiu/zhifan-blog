@@ -18,7 +18,8 @@ const normalizeArticle = (article) => {
   const accent = category === "项目经验"
     ? "mint"
     : ["mint", "coral", "sky"].includes(article.accent) ? article.accent : "sky";
-  return { ...article, category, accent };
+  const contentFormat = article.contentFormat === "markdown" ? "markdown" : "plain";
+  return { ...article, category, accent, contentFormat };
 };
 
 const articleCard = (article, index) => {
@@ -35,7 +36,16 @@ const articleCard = (article, index) => {
 const articleSource = existsSync(join(root, "docs", "articles.json"))
   ? join(root, "docs", "articles.json")
   : join(root, "content", "articles.json");
+const mediaConfigSource = existsSync(join(root, "docs", "media-config.json"))
+  ? join(root, "docs", "media-config.json")
+  : join(root, "content", "media-config.json");
 const allArticles = JSON.parse(await readFile(articleSource, "utf8")).map(normalizeArticle);
+const mediaConfig = JSON.parse(await readFile(mediaConfigSource, "utf8"));
+const mediaSources = (Array.isArray(mediaConfig.allowedHosts) ? mediaConfig.allowedHosts : [])
+  .map((host) => String(host).trim())
+  .filter((host) => /^[a-z0-9.-]+(?::\d+)?$/i.test(host))
+  .map((host) => `https://${host}`)
+  .join(" ");
 const articles = allArticles.filter((article) => !article.status || article.status === "published");
 const visibleArticles = articles.slice(0, pageSize);
 const remainingCount = Math.max(articles.length - visibleArticles.length, 0);
@@ -50,6 +60,11 @@ html = html
 
 const css = (await readFile(join(root, "app", "globals.css"), "utf8"))
   .replace(/^@import\s+["']tailwindcss["'];\s*/u, "");
+const articleHtml = (await readFile(join(root, "public", "article.html"), "utf8"))
+  .replace(
+    "</head>",
+    `    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; connect-src 'self'; frame-src 'none'; img-src 'self'${mediaSources ? ` ${mediaSources}` : ""}; media-src 'self'${mediaSources ? ` ${mediaSources}` : ""}; object-src 'none'; script-src 'self'; style-src 'self'" />\n  </head>`,
+  );
 
 await rm(outputRoot, { recursive: true, force: true });
 await mkdir(outputRoot, { recursive: true });
@@ -59,10 +74,13 @@ await Promise.all([
   writeFile(join(outputRoot, "site.css"), css, "utf8"),
   writeFile(join(outputRoot, ".nojekyll"), "", "utf8"),
   writeFile(join(outputRoot, "articles.json"), `${JSON.stringify(allArticles, null, 2)}\n`, "utf8"),
+  writeFile(join(outputRoot, "media-config.json"), `${JSON.stringify(mediaConfig, null, 2)}\n`, "utf8"),
   copyFile(join(root, "public", "static.js"), join(outputRoot, "static.js")),
-  copyFile(join(root, "public", "article.html"), join(outputRoot, "article.html")),
+  writeFile(join(outputRoot, "article.html"), articleHtml, "utf8"),
   copyFile(join(root, "public", "article.css"), join(outputRoot, "article.css")),
   copyFile(join(root, "public", "article.js"), join(outputRoot, "article.js")),
+  copyFile(join(root, "public", "content.css"), join(outputRoot, "content.css")),
+  copyFile(join(root, "public", "content-renderer.js"), join(outputRoot, "content-renderer.js")),
   copyFile(join(root, "public", "favicon.svg"), join(outputRoot, "favicon.svg")),
 ]);
 

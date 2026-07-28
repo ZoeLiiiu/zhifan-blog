@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "../shared/content.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://zoeliiiu.github.io/zhifan-blog/"),
@@ -30,6 +31,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
+      <head>
+        <script src="/content-renderer.js" defer />
+      </head>
       <body>{children}</body>
     </html>
   );

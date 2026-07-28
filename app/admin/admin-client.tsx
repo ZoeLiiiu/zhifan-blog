@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   categories,
   type Article,
+  type ArticleContentFormat,
   type ArticleStatus,
   type Category,
 } from "@/lib/articles";
@@ -21,11 +22,25 @@ type ArticleDraft = {
   title: string;
   excerpt: string;
   body: string;
+  contentFormat: ArticleContentFormat;
   accent: "mint" | "coral" | "sky";
   status: ArticleStatus;
 };
 
 type StatusFilter = ArticleStatus | "all";
+
+declare global {
+  interface Window {
+    ZhifanContent?: {
+      renderContent: (
+        container: Element,
+        source: string,
+        format: ArticleContentFormat,
+        options?: { allowedMediaHosts?: string[]; emptyText?: string },
+      ) => void;
+    };
+  }
+}
 
 const statusLabels: Record<StatusFilter, string> = {
   all: "全部",
@@ -55,6 +70,7 @@ function emptyDraft(): ArticleDraft {
     title: "",
     excerpt: "",
     body: "",
+    contentFormat: "markdown",
     accent: "mint",
     status: "draft",
   };
@@ -68,6 +84,7 @@ function toDraft(article: Article): ArticleDraft {
     title: article.title,
     excerpt: article.excerpt,
     body: article.body,
+    contentFormat: article.contentFormat === "markdown" ? "markdown" : "plain",
     accent: article.accent,
     status: article.status ?? "draft",
   };
@@ -95,6 +112,9 @@ export default function AdminClient({ user, signOutPath }: AdminClientProps) {
   const [pendingDelete, setPendingDelete] = useState<Article | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [mediaHosts, setMediaHosts] = useState<string[]>([]);
+  const bodyInputRef = useRef<HTMLTextAreaElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const selectedArticle = useMemo(
     () => articles.find((article) => article.id === selectedId) ?? null,
@@ -147,6 +167,39 @@ export default function AdminClient({ user, signOutPath }: AdminClientProps) {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    fetch("/media-config.json", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : { allowedHosts: [] })
+      .then((payload: { allowedHosts?: string[] }) => {
+        if (active) setMediaHosts(Array.isArray(payload.allowedHosts) ? payload.allowedHosts : []);
+      })
+      .catch(() => {
+        if (active) setMediaHosts([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let attempts = 0;
+    let timer = 0;
+    const render = () => {
+      if (previewRef.current && window.ZhifanContent?.renderContent) {
+        window.ZhifanContent.renderContent(previewRef.current, draft.body, draft.contentFormat, {
+          allowedMediaHosts: mediaHosts,
+          emptyText: "正文预览会显示在这里。",
+        });
+        return;
+      }
+      attempts += 1;
+      if (attempts < 20) timer = window.setTimeout(render, 50);
+    };
+    render();
+    return () => window.clearTimeout(timer);
+  }, [draft.body, draft.contentFormat, mediaHosts]);
+
+  useEffect(() => {
     if (!pendingDelete) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setPendingDelete(null);
@@ -175,6 +228,67 @@ export default function AdminClient({ user, signOutPath }: AdminClientProps) {
 
   const updateDraft = <K extends keyof ArticleDraft>(field: K, value: ArticleDraft[K]) => {
     setDraft((current) => ({ ...current, [field]: value }));
+  };
+
+  const replaceBodySelection = (replacement: string, selectStart = 0, selectEnd = replacement.length) => {
+    const input = bodyInputRef.current;
+    if (!input) return;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const nextBody = `${draft.body.slice(0, start)}${replacement}${draft.body.slice(end)}`;
+    updateDraft("body", nextBody);
+    window.requestAnimationFrame(() => {
+      bodyInputRef.current?.focus();
+      bodyInputRef.current?.setSelectionRange(start + selectStart, start + selectEnd);
+    });
+  };
+
+  const wrapBodySelection = (before: string, after: string, fallback: string) => {
+    const input = bodyInputRef.current;
+    if (!input) return;
+    const selected = draft.body.slice(input.selectionStart, input.selectionEnd) || fallback;
+    replaceBodySelection(`${before}${selected}${after}`, before.length, before.length + selected.length);
+  };
+
+  const prefixBodyLines = (prefix: (index: number) => string) => {
+    const input = bodyInputRef.current;
+    if (!input) return;
+    const selected = draft.body.slice(input.selectionStart, input.selectionEnd) || "在这里继续写";
+    const replacement = selected.split("\n").map((line, index) => `${prefix(index)}${line}`).join("\n");
+    replaceBodySelection(replacement);
+  };
+
+  const markdownAction = (action: string) => {
+    if (draft.contentFormat !== "markdown") return;
+    if (action === "heading") prefixBodyLines(() => "## ");
+    if (action === "bold") wrapBodySelection("**", "**", "重点文字");
+    if (action === "italic") wrapBodySelection("*", "*", "强调文字");
+    if (action === "quote") prefixBodyLines(() => "> ");
+    if (action === "unordered-list") prefixBodyLines(() => "- ");
+    if (action === "ordered-list") prefixBodyLines((index) => `${index + 1}. `);
+    if (action === "inline-code") wrapBodySelection("`", "`", "代码");
+    if (action === "code") {
+      const language = window.prompt("代码语言，例如 javascript、python、sql", "javascript")?.trim() || "plaintext";
+      wrapBodySelection(`\`\`\`${language}\n`, "\n```", "在这里粘贴代码");
+    }
+    if (action === "link") {
+      const href = window.prompt("请输入 HTTPS 链接或站内相对地址", "https://");
+      if (href) wrapBodySelection("[", `](${href.trim()})`, "链接文字");
+    }
+    if (action === "image") {
+      const url = window.prompt("请粘贴已上传图片的 HTTPS 地址", "https://");
+      if (!url) return;
+      const alt = window.prompt("请填写图片替代文字", "文章图片")?.replaceAll("]", "\\]") || "文章图片";
+      replaceBodySelection(`![${alt}](${url.trim()})`);
+    }
+    if (action === "video") {
+      const url = window.prompt("请粘贴已上传 MP4 或 WebM 的 HTTPS 地址", "https://");
+      if (!url) return;
+      const caption = window.prompt("视频标题（可选）", "")?.replaceAll('"', "'").trim();
+      replaceBodySelection(`@[video](${url.trim()}${caption ? ` "${caption}"` : ""})`);
+    }
+    if (action === "table") replaceBodySelection("| 项目 | 说明 |\n| --- | --- |\n| 内容 | 在这里填写 |");
+    if (action === "divider") replaceBodySelection("\n\n---\n\n", 2, 5);
   };
 
   const saveArticle = async (requestedStatus: ArticleStatus) => {
@@ -302,7 +416,31 @@ export default function AdminClient({ user, signOutPath }: AdminClientProps) {
                 <label className="admin-field admin-field-title">标题<input value={draft.title} onChange={(event) => updateDraft("title", event.target.value)} placeholder="给这篇文章一个标题" required maxLength={120} /></label>
                 <div className="admin-field-grid"><label className="admin-field">栏目<select value={draft.category} onChange={(event) => { const category = event.target.value as ArticleDraft["category"]; updateDraft("category", category); updateDraft("accent", categoryAccent[category]); }}>{categories.map((item) => <option key={item.label} value={item.label}>{item.label}</option>)}</select></label><label className="admin-field">日期<input value={draft.date} onChange={(event) => updateDraft("date", event.target.value)} required /></label><label className="admin-field">阅读时长<input value={draft.readTime} onChange={(event) => updateDraft("readTime", event.target.value)} required /></label></div>
                 <label className="admin-field">摘要<textarea value={draft.excerpt} onChange={(event) => updateDraft("excerpt", event.target.value)} placeholder="用一句话告诉读者，这篇文章值得回看的地方" rows={3} maxLength={300} /></label>
-                <label className="admin-field">正文<textarea className="admin-body-input" value={draft.body} onChange={(event) => updateDraft("body", event.target.value)} placeholder="从这里开始写正文……" rows={11} maxLength={30000} required /></label>
+                <div className="admin-rich-editor">
+                  {draft.contentFormat === "plain" && <div className="admin-format-notice"><span>这是一篇旧的纯文本文章，当前会保持原样显示。</span><button type="button" onClick={() => updateDraft("contentFormat", "markdown")}>升级为多格式文章</button></div>}
+                  <div className="admin-markdown-toolbar" aria-label="Markdown 格式工具栏">
+                    {[
+                      ["heading", "H2"],
+                      ["bold", "粗体"],
+                      ["italic", "斜体"],
+                      ["quote", "引用"],
+                      ["unordered-list", "列表"],
+                      ["ordered-list", "编号"],
+                      ["link", "链接"],
+                      ["image", "图片 URL"],
+                      ["video", "视频 URL"],
+                      ["inline-code", "行内代码"],
+                      ["code", "代码块"],
+                      ["table", "表格"],
+                      ["divider", "分隔线"],
+                    ].map(([action, label]) => <button key={action} type="button" onClick={() => markdownAction(action)} disabled={draft.contentFormat !== "markdown"}>{label}</button>)}
+                  </div>
+                  <p className="admin-upload-note">本地图片和视频请在 ECS 安全后台上传；这里可以插入已经上传好的 HTTPS 地址。</p>
+                  <div className="admin-rich-grid">
+                    <label className="admin-field">正文（Markdown）<textarea ref={bodyInputRef} className="admin-body-input" value={draft.body} onChange={(event) => updateDraft("body", event.target.value)} placeholder="从这里开始写正文……" rows={18} maxLength={100000} required /></label>
+                    <section className="admin-rich-preview" aria-label="文章实时预览"><span>实时预览</span><div ref={previewRef} /></section>
+                  </div>
+                </div>
                 <div className="admin-editor-footer"><label className="admin-field admin-status-select">当前状态<select value={draft.status} onChange={(event) => updateDraft("status", event.target.value as ArticleStatus)}><option value="draft">草稿</option><option value="published">已发布</option><option value="archived">已归档</option></select></label><div className="admin-form-actions"><button className="button button-quiet" type="button" onClick={startNew}>清空</button><button className="button button-secondary" type="submit" data-status={draft.status} disabled={saving}>{saving ? "保存中…" : "保存更改"}</button><button className="button button-primary" type="submit" data-status="published" disabled={saving}>发布文章 <span aria-hidden="true">↗</span></button></div></div>
               </form>
             </section>

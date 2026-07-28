@@ -2,6 +2,7 @@ export type Category = "全部" | "项目经验" | "生活随想";
 export type ArticleCategory = Exclude<Category, "全部">;
 
 export type ArticleStatus = "draft" | "published" | "archived";
+export type ArticleContentFormat = "plain" | "markdown";
 
 export type Article = {
   id: string;
@@ -11,6 +12,7 @@ export type Article = {
   title: string;
   excerpt: string;
   body: string;
+  contentFormat: ArticleContentFormat;
   accent: "mint" | "coral" | "sky";
   status?: ArticleStatus;
   createdAt?: string;
@@ -27,6 +29,7 @@ export const seedArticles: Article[] = [
     title: "把复杂的事，讲成别人听得懂的事",
     excerpt: "好的表达不是把话说满，而是给对方一条可以走下去的路。",
     body: "我把这件事拆成三个动作：先说结论，再补关键证据，最后留下一个可执行的下一步。写文档、做汇报、和人协作，其实都适用。",
+    contentFormat: "plain",
     accent: "mint",
     status: "published",
   },
@@ -38,6 +41,7 @@ export const seedArticles: Article[] = [
     title: "一个小功能上线后，我学会了先问为什么",
     excerpt: "复盘不是寻找谁做错了，而是找出系统怎样才能更温柔地工作。",
     body: "这次上线最有价值的部分，不是交付了多少代码，而是让我们看见了需求、节奏和反馈之间的缝隙。下一次，我会把验证提前一周。",
+    contentFormat: "plain",
     accent: "mint",
     status: "published",
   },
@@ -49,6 +53,7 @@ export const seedArticles: Article[] = [
     title: "给日子留一点没有安排的时间",
     excerpt: "当生活不再只剩下待办事项，心里才会长出新的方向。",
     body: "我开始把每周的一小段时间留给散步、发呆和不带目的地读几页书。那些看似没有产出的时刻，反而让下一次出发变得清醒。",
+    contentFormat: "plain",
     accent: "sky",
     status: "published",
   },
@@ -88,4 +93,12 @@ export function normalizeArticleAccent(category: ArticleCategory, value: unknown
 
 export function isArticleStatus(value: unknown): value is ArticleStatus {
   return value === "draft" || value === "published" || value === "archived";
+}
+
+export function isArticleContentFormat(value: unknown): value is ArticleContentFormat {
+  return value === "plain" || value === "markdown";
+}
+
+export function normalizeArticleContentFormat(value: unknown): ArticleContentFormat {
+  return value === "markdown" ? "markdown" : "plain";
 }

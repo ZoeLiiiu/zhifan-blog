@@ -16,6 +16,7 @@ import {
 import { createServer } from "node:http";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import {
+  createHmac,
   randomBytes,
   randomUUID,
   scryptSync,
@@ -32,6 +33,7 @@ const port = Number(process.env.PORT || 3210);
 const dataFile = resolve(process.env.DATA_FILE || join(appRoot, "data", "articles.json"));
 const seedFile = resolve(process.env.SEED_FILE || join(appRoot, "..", "content", "articles.json"));
 const backupDir = resolve(process.env.BACKUP_DIR || join(dirname(dataFile), "backups"));
+const mediaFile = resolve(process.env.MEDIA_FILE || join(dirname(dataFile), "media.json"));
 const repoDir = process.env.REPO_DIR ? resolve(process.env.REPO_DIR) : "";
 const adminUsername = process.env.ADMIN_USERNAME || "zhifan";
 const passwordHash = process.env.ADMIN_PASSWORD_HASH || "";
@@ -40,7 +42,30 @@ const loginAttempts = new Map();
 const categories = new Set(["项目经验", "生活随想"]);
 const statuses = new Set(["draft", "published", "archived"]);
 const accents = new Set(["mint", "coral", "sky"]);
+const contentFormats = new Set(["plain", "markdown"]);
 const maxBodyBytes = 1024 * 1024;
+const ossBucket = (process.env.OSS_BUCKET || "").trim();
+const ossEndpoint = (process.env.OSS_ENDPOINT || "").trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+const ossAccessKeyId = (process.env.OSS_ACCESS_KEY_ID || "").trim();
+const ossAccessKeySecret = process.env.OSS_ACCESS_KEY_SECRET || "";
+const ossSecurityToken = process.env.OSS_SECURITY_TOKEN || "";
+const ossPublicBaseUrl = (process.env.OSS_PUBLIC_BASE_URL || (
+  ossBucket && ossEndpoint ? `https://${ossBucket}.${ossEndpoint}` : ""
+)).trim().replace(/\/+$/, "");
+const ossOrigin = (() => {
+  try {
+    return new URL(ossPublicBaseUrl).origin;
+  } catch {
+    return "";
+  }
+})();
+const mediaTypes = new Map([
+  ["image/jpeg", { kind: "image", extension: "jpg", maxSize: 10 * 1024 * 1024 }],
+  ["image/png", { kind: "image", extension: "png", maxSize: 10 * 1024 * 1024 }],
+  ["image/webp", { kind: "image", extension: "webp", maxSize: 10 * 1024 * 1024 }],
+  ["video/mp4", { kind: "video", extension: "mp4", maxSize: 200 * 1024 * 1024 }],
+  ["video/webm", { kind: "video", extension: "webm", maxSize: 200 * 1024 * 1024 }],
+]);
 let mutationQueue = Promise.resolve();
 
 if (!passwordHash.startsWith("scrypt$")) {
@@ -48,9 +73,10 @@ if (!passwordHash.startsWith("scrypt$")) {
 }
 
 function securityHeaders(extra = {}) {
+  const mediaSource = ossOrigin ? ` ${ossOrigin}` : "";
   return {
     "Cache-Control": "no-store",
-    "Content-Security-Policy": "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'",
+    "Content-Security-Policy": `default-src 'self'; base-uri 'none'; connect-src 'self'${mediaSource}; form-action 'self'${mediaSource}; frame-ancestors 'none'; img-src 'self' blob:${mediaSource}; media-src 'self' blob:${mediaSource}; object-src 'none'`,
     "Cross-Origin-Opener-Policy": "same-origin",
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
@@ -152,21 +178,34 @@ function cleanText(value, maxLength, required = false) {
   return text;
 }
 
+function cleanBody(value, required = false) {
+  const text = typeof value === "string" ? value : "";
+  if (required && !text.trim()) throw Object.assign(new Error("请填写完整的文章内容"), { statusCode: 400 });
+  if (text.length > 100000) throw Object.assign(new Error("正文不能超过 100000 个字符"), { statusCode: 400 });
+  if (/data:[^,\s]+;base64,/i.test(text)) {
+    throw Object.assign(new Error("正文不能包含 Base64 文件，请使用媒体上传功能"), { statusCode: 400 });
+  }
+  return text;
+}
+
 function normalizeStoredArticle(article) {
   const category = article?.category === "生活随想" ? "生活随想" : "项目经验";
   const accent = category === "项目经验"
     ? "mint"
     : accents.has(article?.accent) ? article.accent : "sky";
-  return { ...article, category, accent };
+  const contentFormat = article?.contentFormat === "markdown" ? "markdown" : "plain";
+  return { ...article, category, accent, contentFormat };
 }
 
 function parseArticle(payload, existing = null) {
   const category = payload.category ?? existing?.category;
   const status = payload.status ?? existing?.status ?? "draft";
   const requestedAccent = payload.accent ?? existing?.accent ?? "mint";
+  const contentFormat = payload.contentFormat ?? existing?.contentFormat ?? "markdown";
   if (!categories.has(category)) throw Object.assign(new Error("请选择有效的文章分类"), { statusCode: 400 });
   if (!statuses.has(status)) throw Object.assign(new Error("请选择有效的文章状态"), { statusCode: 400 });
   if (!accents.has(requestedAccent)) throw Object.assign(new Error("请选择有效的文章配色"), { statusCode: 400 });
+  if (!contentFormats.has(contentFormat)) throw Object.assign(new Error("请选择有效的正文格式"), { statusCode: 400 });
   const accent = category === "项目经验" ? "mint" : requestedAccent;
 
   const article = {
@@ -176,7 +215,8 @@ function parseArticle(payload, existing = null) {
     readTime: cleanText(payload.readTime ?? existing?.readTime, 32, true),
     title: cleanText(payload.title ?? existing?.title, 160, true),
     excerpt: cleanText(payload.excerpt ?? existing?.excerpt, 500),
-    body: cleanText(payload.body ?? existing?.body, 50000, status === "published"),
+    body: cleanBody(payload.body ?? existing?.body, status === "published"),
+    contentFormat,
     accent,
     status,
     createdAt: existing?.createdAt || new Date().toISOString(),
@@ -232,6 +272,136 @@ async function writeArticles(articles) {
   await rename(temporary, dataFile);
 }
 
+function mediaEnabled() {
+  return Boolean(ossBucket && ossEndpoint && ossAccessKeyId && ossAccessKeySecret && ossPublicBaseUrl);
+}
+
+function mediaConfig() {
+  let mediaHost = "";
+  try {
+    mediaHost = new URL(ossPublicBaseUrl).host;
+  } catch {
+    // OSS 未配置时保持空白名单。
+  }
+  return {
+    enabled: mediaEnabled(),
+    allowedHosts: mediaHost ? [mediaHost] : [],
+    imageMaxBytes: 10 * 1024 * 1024,
+    videoMaxBytes: 200 * 1024 * 1024,
+    acceptedTypes: [...mediaTypes.keys()],
+  };
+}
+
+async function readMedia() {
+  await mkdir(dirname(mediaFile), { recursive: true });
+  if (!existsSync(mediaFile)) return [];
+  const parsed = JSON.parse(await readFile(mediaFile, "utf8"));
+  if (!Array.isArray(parsed)) throw new Error("媒体数据库格式不正确");
+  return parsed;
+}
+
+async function writeMedia(media) {
+  await mkdir(dirname(mediaFile), { recursive: true });
+  const temporary = `${mediaFile}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(temporary, `${JSON.stringify(media, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  await rename(temporary, mediaFile);
+}
+
+function requireMediaConfiguration() {
+  if (!mediaEnabled()) {
+    throw Object.assign(new Error("OSS 尚未配置，请先补充媒体存储参数"), { statusCode: 503 });
+  }
+}
+
+function encodeObjectKey(key) {
+  return key.split("/").map(encodeURIComponent).join("/");
+}
+
+function objectPublicUrl(key) {
+  return `${ossPublicBaseUrl}/${encodeObjectKey(key)}`;
+}
+
+function signPostPolicy({ key, mime, maxSize }) {
+  const expiration = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  const conditions = [
+    ["eq", "$key", key],
+    ["eq", "$Content-Type", mime],
+    ["eq", "$success_action_status", "200"],
+    ["eq", "$x-oss-object-acl", "public-read"],
+    ["content-length-range", 1, maxSize],
+  ];
+  if (ossSecurityToken) conditions.push(["eq", "$x-oss-security-token", ossSecurityToken]);
+  const policy = Buffer.from(JSON.stringify({ expiration, conditions }), "utf8").toString("base64");
+  const signature = createHmac("sha1", ossAccessKeySecret).update(policy).digest("base64");
+  return {
+    uploadUrl: `https://${ossBucket}.${ossEndpoint}`,
+    expiresAt: expiration,
+    fields: {
+      key,
+      OSSAccessKeyId: ossAccessKeyId,
+      policy,
+      Signature: signature,
+      "Content-Type": mime,
+      success_action_status: "200",
+      "x-oss-object-acl": "public-read",
+      ...(ossSecurityToken ? { "x-oss-security-token": ossSecurityToken } : {}),
+    },
+  };
+}
+
+function matchesMagic(mime, bytes) {
+  if (mime === "image/jpeg") return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (mime === "image/png") return bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  if (mime === "image/webp") return bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP";
+  if (mime === "video/mp4") return bytes.subarray(4, 8).toString("ascii") === "ftyp";
+  if (mime === "video/webm") return bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+  return false;
+}
+
+async function inspectPublicObject(record) {
+  const response = await fetch(record.url, {
+    headers: { Range: "bytes=0-31" },
+    redirect: "error",
+  });
+  if (response.status !== 206) {
+    await response.body?.cancel();
+    throw Object.assign(new Error("OSS 文件暂时无法读取，请检查 Bucket 公共读取配置"), { statusCode: 502 });
+  }
+  const declaredSize = Number(response.headers.get("content-range")?.split("/").at(-1)
+    || response.headers.get("content-length")
+    || 0);
+  if (!Number.isFinite(declaredSize) || declaredSize <= 0 || declaredSize > record.maxSize) {
+    throw Object.assign(new Error("OSS 文件大小校验失败"), { statusCode: 400 });
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (!matchesMagic(record.mime, bytes)) {
+    throw Object.assign(new Error("文件内容与声明的格式不一致"), { statusCode: 400 });
+  }
+  return declaredSize;
+}
+
+function ossAuthorization(method, key, date) {
+  const securityHeader = ossSecurityToken ? `x-oss-security-token:${ossSecurityToken}\n` : "";
+  const canonical = `${method}\n\n\n${date}\n${securityHeader}/${ossBucket}/${key}`;
+  const signature = createHmac("sha1", ossAccessKeySecret).update(canonical).digest("base64");
+  return `OSS ${ossAccessKeyId}:${signature}`;
+}
+
+async function deleteOssObject(key) {
+  const date = new Date().toUTCString();
+  const response = await fetch(`https://${ossBucket}.${ossEndpoint}/${encodeObjectKey(key)}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: ossAuthorization("DELETE", key, date),
+      Date: date,
+      ...(ossSecurityToken ? { "x-oss-security-token": ossSecurityToken } : {}),
+    },
+  });
+  if (!response.ok && response.status !== 404) {
+    throw Object.assign(new Error("OSS 文件删除失败"), { statusCode: 502 });
+  }
+}
+
 async function runGit(args) {
   if (!repoDir) throw new Error("尚未配置 GitHub 仓库目录");
   return execFileAsync("git", args, {
@@ -254,8 +424,10 @@ async function publishArticles(articles) {
   try {
     await runGit(["pull", "--rebase", "origin", "main"]);
     const target = join(repoDir, "docs", "articles.json");
+    const mediaConfigTarget = join(repoDir, "docs", "media-config.json");
     await writeFile(target, `${JSON.stringify(publicArticles, null, 2)}\n`, "utf8");
-    await runGit(["add", "docs/articles.json"]);
+    await writeFile(mediaConfigTarget, `${JSON.stringify(mediaConfig(), null, 2)}\n`, "utf8");
+    await runGit(["add", "docs/articles.json", "docs/media-config.json"]);
     const diff = await runGit(["diff", "--cached", "--quiet"]).then(() => false, (error) => {
       if (error.code === 1) return true;
       throw error;
@@ -343,6 +515,98 @@ async function handleApi(request, response, url) {
   }
 
   if (!requireSession(request, response)) return;
+
+  if (url.pathname === "/api/media" && request.method === "GET") {
+    const media = (await readMedia()).sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+    sendJson(response, 200, { media, config: mediaConfig() });
+    return;
+  }
+
+  if (url.pathname === "/api/media/policy" && request.method === "POST") {
+    requireMediaConfiguration();
+    const payload = await readJsonBody(request);
+    const mime = typeof payload.mime === "string" ? payload.mime.trim().toLowerCase() : "";
+    const type = mediaTypes.get(mime);
+    const kind = payload.kind === "video" ? "video" : payload.kind === "image" ? "image" : "";
+    const size = Number(payload.size);
+    if (!type || type.kind !== kind) {
+      throw Object.assign(new Error("不支持这种媒体格式"), { statusCode: 400 });
+    }
+    if (!Number.isSafeInteger(size) || size <= 0 || size > type.maxSize) {
+      throw Object.assign(new Error(`${kind === "image" ? "图片" : "视频"}大小超出限制`), { statusCode: 400 });
+    }
+    const originalName = cleanText(payload.name, 200, true);
+    const now = new Date();
+    const id = `media-${randomUUID()}`;
+    const key = `public/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${randomUUID()}.${type.extension}`;
+    const record = {
+      id,
+      key,
+      url: objectPublicUrl(key),
+      kind,
+      mime,
+      size,
+      maxSize: type.maxSize,
+      originalName,
+      status: "pending",
+      createdAt: now.toISOString(),
+      completedAt: null,
+    };
+    await queueMutation(async () => {
+      const media = await readMedia();
+      media.unshift(record);
+      await writeMedia(media);
+    });
+    sendJson(response, 201, { media: record, ...signPostPolicy({ key, mime, maxSize: type.maxSize }) });
+    return;
+  }
+
+  if (url.pathname === "/api/media/complete" && request.method === "POST") {
+    requireMediaConfiguration();
+    const payload = await readJsonBody(request);
+    const id = typeof payload.id === "string" ? payload.id : "";
+    const key = typeof payload.key === "string" ? payload.key : "";
+    const result = await queueMutation(async () => {
+      const media = await readMedia();
+      const index = media.findIndex((item) => item.id === id && item.key === key);
+      if (index < 0) throw Object.assign(new Error("没有找到这次上传记录"), { statusCode: 404 });
+      const record = media[index];
+      const verifiedSize = await inspectPublicObject(record);
+      media[index] = {
+        ...record,
+        size: verifiedSize,
+        status: "ready",
+        completedAt: new Date().toISOString(),
+      };
+      await writeMedia(media);
+      return media[index];
+    });
+    sendJson(response, 200, { media: result, config: mediaConfig() });
+    return;
+  }
+
+  const mediaMatch = url.pathname.match(/^\/api\/media\/([^/]+)$/);
+  if (mediaMatch && request.method === "DELETE") {
+    requireMediaConfiguration();
+    const id = decodeURIComponent(mediaMatch[1]);
+    const result = await queueMutation(async () => {
+      const [media, articles] = await Promise.all([readMedia(), readArticles()]);
+      const index = media.findIndex((item) => item.id === id);
+      if (index < 0) throw Object.assign(new Error("没有找到这个媒体文件"), { statusCode: 404 });
+      const record = media[index];
+      const referenced = articles.some((article) => String(article.body || "").includes(record.url)
+        || String(article.body || "").includes(record.key));
+      if (referenced) {
+        throw Object.assign(new Error("这个媒体仍被文章引用，不能删除"), { statusCode: 409 });
+      }
+      await deleteOssObject(record.key);
+      media.splice(index, 1);
+      await writeMedia(media);
+      return record;
+    });
+    sendJson(response, 200, { deleted: true, media: result });
+    return;
+  }
 
   if (url.pathname === "/api/articles" && request.method === "GET") {
     sendJson(response, 200, { articles: await readArticles() });

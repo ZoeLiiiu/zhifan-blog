@@ -21,12 +21,32 @@ npm run build
 
 原有 Sites 后台仍可作为兼容版本使用；日常文章管理以 ECS 私有后台为准。
 
+多格式正文采用 Markdown 保存。新文章默认启用工具栏与实时预览，旧文章继续按
+纯文本显示，只有管理员主动点击“升级为多格式文章”后才会改变格式模式。
+
 ## ECS 私有后台与免费公开发布
 
 不购买域名时，公开博客继续由 GitHub Pages 免费托管，ECS 只运行绑定在
 `127.0.0.1:3210` 的私有管理后台。管理员通过 SSH 加密通道访问后台；每次保存、
 发布、归档或删除文章后，后台会把公开文章写入 `docs/articles.json` 并推送到
 GitHub，GitHub Pages 随后自动更新。
+
+### 图片和视频
+
+本地图片、视频通过 ECS 后台直接上传到阿里云 OSS，文件不会经过 ECS 内存，也
+不会写入 Git 仓库。需要准备一个与 ECS 同地域的独立 Bucket：
+
+- 匿名用户只能读取 `public/` 前缀，不能上传或列举对象；
+- RAM 凭证仅能写入、检查和删除该前缀；
+- CORS 允许 `http://127.0.0.1:3210` 和 `http://localhost:3210` 发起
+  `POST`、`HEAD` 请求，并暴露 `ETag`；
+- 将 `OSS_BUCKET`、`OSS_ENDPOINT`、`OSS_PUBLIC_BASE_URL`、
+  `OSS_ACCESS_KEY_ID`、`OSS_ACCESS_KEY_SECRET` 写入服务器的
+  `/etc/zhifan-admin.env` 后重启服务。
+
+图片支持 JPEG、PNG、WebP，单张不超过 10 MiB；视频支持 MP4、WebM，单个
+不超过 200 MiB。服务器只签发五分钟有效的上传策略，不会把 AccessKey Secret
+交给浏览器。
 
 本地打开后台：
 

@@ -36,9 +36,15 @@
     }
 
     try {
-      const response = await fetch(`./articles.json?v=${Date.now()}`, { cache: "no-store" });
+      const [response, mediaResponse] = await Promise.all([
+        fetch(`./articles.json?v=${Date.now()}`, { cache: "no-store" }),
+        fetch(`./media-config.json?v=${Date.now()}`, { cache: "no-store" }).catch(() => null),
+      ]);
       if (!response.ok) throw new Error(`文章数据加载失败：${response.status}`);
       const articles = await response.json();
+      const mediaConfig = mediaResponse?.ok
+        ? await mediaResponse.json().catch(() => ({ allowedHosts: [] }))
+        : { allowedHosts: [] };
       if (!Array.isArray(articles)) throw new Error("文章数据格式不正确");
       const matchedArticle = articles.find((item) => item.id === articleId && (!item.status || item.status === "published"));
       if (!matchedArticle) {
@@ -54,7 +60,14 @@
       document.querySelector("[data-read-time]").textContent = article.readTime;
       document.querySelector("[data-title]").textContent = article.title;
       document.querySelector("[data-excerpt]").textContent = article.excerpt;
-      document.querySelector("[data-body]").textContent = article.body;
+      const bodyElement = document.querySelector("[data-body]");
+      if (!window.ZhifanContent?.renderContent) throw new Error("正文渲染资源加载失败");
+      window.ZhifanContent.renderContent(
+        bodyElement,
+        article.body,
+        article.contentFormat === "markdown" ? "markdown" : "plain",
+        { allowedMediaHosts: mediaConfig.allowedHosts },
+      );
       document.title = `${article.title} · 知返`;
       document.querySelector('meta[name="description"]')?.setAttribute("content", article.excerpt || article.title);
 

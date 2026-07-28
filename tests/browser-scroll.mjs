@@ -262,12 +262,42 @@ try {
   const returned = await state(cdp);
   assert.ok(returned.visibleArticles > 0);
 
+  await cdp.send("Page.navigate", { url: articleHref });
+  await waitForArticle(cdp);
+  const richContent = await evaluate(cdp, `(() => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    window.__zhifanXss = 0;
+    window.ZhifanContent.renderContent(
+      container,
+      '# 安全标题\\n\\n<script>window.__zhifanXss = 1<\\/script>\\n\\n[危险链接](javascript:window.__zhifanXss=2)\\n\\n\`\`\`html\\n<img src=x onerror="window.__zhifanXss=3">\\n\`\`\`\\n\\n@[video](https://evil.example/video.mp4 "危险视频")\\n\\n@[video](https://media.example.com/video.mp4 "正常视频")',
+      'markdown',
+      { allowedMediaHosts: ['media.example.com'] },
+    );
+    return {
+      xss: window.__zhifanXss,
+      scripts: container.querySelectorAll('script').length,
+      unsafeHrefs: [...container.querySelectorAll('a')].filter((link) => /^javascript:/i.test(link.getAttribute('href') || '')).length,
+      mediaErrors: container.querySelectorAll('.content-media-error').length,
+      videos: container.querySelectorAll('video').length,
+      code: container.querySelector('pre code')?.textContent,
+      rawHtmlVisible: container.textContent.includes('<script>'),
+    };
+  })()`);
+  assert.equal(richContent.xss, 0);
+  assert.equal(richContent.scripts, 0);
+  assert.equal(richContent.unsafeHrefs, 0);
+  assert.equal(richContent.mediaErrors, 1);
+  assert.equal(richContent.videos, 1);
+  assert.match(richContent.code, /onerror/);
+  assert.equal(richContent.rawHtmlVisible, true);
+
   const missingUrl = await evaluate(cdp, "new URL('./article.html?id=missing-article', location.href).href");
   await cdp.send("Page.navigate", { url: missingUrl });
   const missing = await waitForArticle(cdp, "error");
   assert.match(missing.title, /文章暂时不在这里/);
 
-  console.log(JSON.stringify({ initial, structure, latest, afterWheel, settledWheel, loaded, projectCards, category, detail, returned, missing }, null, 2));
+  console.log(JSON.stringify({ initial, structure, latest, afterWheel, settledWheel, loaded, projectCards, category, detail, returned, richContent, missing }, null, 2));
 } finally {
   if (cdp) {
     try {

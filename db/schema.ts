@@ -11,6 +11,7 @@ export const articles = sqliteTable(
     title: text("title").notNull(),
     excerpt: text("excerpt").notNull().default(""),
     body: text("body").notNull().default(""),
+    contentFormat: text("content_format").notNull().default("plain"),
     accent: text("accent").notNull().default("mint"),
     status: text("status").notNull().default("draft"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),

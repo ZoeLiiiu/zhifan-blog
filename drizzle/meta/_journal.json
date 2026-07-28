@@ -15,6 +15,13 @@
       "when": 1785210138813,
       "tag": "0001_merge_article_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785220084795,
+      "tag": "0002_peaceful_paladin",
+      "breakpoints": true
     }
   ]
 }

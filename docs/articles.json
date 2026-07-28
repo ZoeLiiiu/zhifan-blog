@@ -11,7 +11,8 @@
     "status": "published",
     "createdAt": "2026-07-28T01:51:41.301Z",
     "updatedAt": "2026-07-28T03:21:02.518Z",
-    "publishedAt": "2026-07-28T01:51:41.301Z"
+    "publishedAt": "2026-07-28T01:51:41.301Z",
+    "contentFormat": "plain"
   },
   {
     "id": "article-9bc2c65c-6814-4e67-a168-42c903f2b15a",
@@ -25,7 +26,8 @@
     "status": "published",
     "createdAt": "2026-07-28T01:50:31.589Z",
     "updatedAt": "2026-07-28T03:20:43.706Z",
-    "publishedAt": "2026-07-28T01:50:31.589Z"
+    "publishedAt": "2026-07-28T01:50:31.589Z",
+    "contentFormat": "plain"
   },
   {
     "id": "article-86b99b99-66f7-4eb9-99c4-7df5ce2922b8",
@@ -39,7 +41,8 @@
     "status": "published",
     "createdAt": "2026-07-28T01:47:10.421Z",
     "updatedAt": "2026-07-28T03:20:16.858Z",
-    "publishedAt": "2026-07-28T01:47:10.421Z"
+    "publishedAt": "2026-07-28T01:47:10.421Z",
+    "contentFormat": "plain"
   },
   {
     "id": "article-5a51661e-638a-431e-b83e-b1c69e0e4c7a",
@@ -53,7 +56,8 @@
     "status": "published",
     "createdAt": "2026-07-28T01:25:43.587Z",
     "updatedAt": "2026-07-28T03:19:52.435Z",
-    "publishedAt": "2026-07-28T01:25:43.587Z"
+    "publishedAt": "2026-07-28T01:25:43.587Z",
+    "contentFormat": "plain"
   },
   {
     "id": "slow-work",
@@ -67,7 +71,8 @@
     "status": "published",
     "createdAt": "2026-07-12T00:00:00.000Z",
     "updatedAt": "2026-07-12T00:00:00.000Z",
-    "publishedAt": "2026-07-12T00:00:00.000Z"
+    "publishedAt": "2026-07-12T00:00:00.000Z",
+    "contentFormat": "plain"
   },
   {
     "id": "small-launch",
@@ -81,7 +86,8 @@
     "status": "published",
     "createdAt": "2026-06-28T00:00:00.000Z",
     "updatedAt": "2026-06-28T00:00:00.000Z",
-    "publishedAt": "2026-06-28T00:00:00.000Z"
+    "publishedAt": "2026-06-28T00:00:00.000Z",
+    "contentFormat": "plain"
   },
   {
     "id": "window-light",
@@ -95,6 +101,7 @@
     "status": "published",
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-05T00:00:00.000Z",
-    "publishedAt": "2026-06-05T00:00:00.000Z"
+    "publishedAt": "2026-06-05T00:00:00.000Z",
+    "contentFormat": "plain"
   }
 ]
