@@ -7,6 +7,7 @@ import {
   listArticles,
   toArticle,
 } from "@/lib/articles-server";
+import { normalizeArticleAccent, normalizeArticleCategory } from "@/lib/articles";
 
 export const dynamic = "force-dynamic";
 
@@ -48,18 +49,19 @@ export async function POST(request: Request) {
 
     const now = new Date().toISOString();
     const status = parsed.value.status ?? "draft";
+    const category = normalizeArticleCategory(parsed.value.category);
     const db = await getArticleDb();
     const [row] = await db
       .insert(articles)
       .values({
         id: `article-${crypto.randomUUID()}`,
-        category: parsed.value.category!,
+        category,
         date: parsed.value.date!,
         readTime: parsed.value.readTime!,
         title: parsed.value.title!,
         excerpt: parsed.value.excerpt ?? "",
         body: parsed.value.body ?? "",
-        accent: parsed.value.accent!,
+        accent: normalizeArticleAccent(category, parsed.value.accent),
         status,
         createdAt: now,
         updatedAt: now,

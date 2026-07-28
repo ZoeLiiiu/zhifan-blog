@@ -13,6 +13,14 @@ const escapeHtml = (value) => String(value ?? "")
   .replaceAll('"', "&quot;")
   .replaceAll("'", "&#39;");
 
+const normalizeArticle = (article) => {
+  const category = article.category === "生活随想" ? "生活随想" : "项目经验";
+  const accent = category === "项目经验"
+    ? "mint"
+    : ["mint", "coral", "sky"].includes(article.accent) ? article.accent : "sky";
+  return { ...article, category, accent };
+};
+
 const articleCard = (article, index) => {
   const accent = ["mint", "coral", "sky"].includes(article.accent) ? article.accent : "mint";
   const id = encodeURIComponent(article.id);
@@ -27,7 +35,7 @@ const articleCard = (article, index) => {
 const articleSource = existsSync(join(root, "docs", "articles.json"))
   ? join(root, "docs", "articles.json")
   : join(root, "content", "articles.json");
-const allArticles = JSON.parse(await readFile(articleSource, "utf8"));
+const allArticles = JSON.parse(await readFile(articleSource, "utf8")).map(normalizeArticle);
 const articles = allArticles.filter((article) => !article.status || article.status === "published");
 const visibleArticles = articles.slice(0, pageSize);
 const remainingCount = Math.max(articles.length - visibleArticles.length, 0);
@@ -35,6 +43,7 @@ const remainingCount = Math.max(articles.length - visibleArticles.length, 0);
 let html = await readFile(join(root, "static", "index.html"), "utf8");
 html = html
   .replace("{{ARTICLE_COUNT}}", String(articles.length).padStart(2, "0"))
+  .replace("{{CATEGORY_COUNT}}", "02")
   .replace("<!-- ARTICLE_CARDS -->", visibleArticles.map(articleCard).join("\n"))
   .replace("{{REMAINING_COUNT}}", String(remainingCount))
   .replace("{{LOAD_MORE_HIDDEN}}", remainingCount ? "" : "hidden");
@@ -49,7 +58,7 @@ await Promise.all([
   writeFile(join(outputRoot, "404.html"), html, "utf8"),
   writeFile(join(outputRoot, "site.css"), css, "utf8"),
   writeFile(join(outputRoot, ".nojekyll"), "", "utf8"),
-  copyFile(articleSource, join(outputRoot, "articles.json")),
+  writeFile(join(outputRoot, "articles.json"), `${JSON.stringify(allArticles, null, 2)}\n`, "utf8"),
   copyFile(join(root, "public", "static.js"), join(outputRoot, "static.js")),
   copyFile(join(root, "public", "article.html"), join(outputRoot, "article.html")),
   copyFile(join(root, "public", "article.css"), join(outputRoot, "article.css")),

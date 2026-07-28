@@ -8,6 +8,14 @@
     return element;
   };
 
+  const normalizeArticle = (article) => {
+    const category = article.category === "生活随想" ? "生活随想" : "项目经验";
+    const accent = category === "项目经验"
+      ? "mint"
+      : ["mint", "coral", "sky"].includes(article.accent) ? article.accent : "sky";
+    return { ...article, category, accent };
+  };
+
   const createArticleCard = (article, featured) => {
     const accent = ["mint", "coral", "sky"].includes(article.accent) ? article.accent : "mint";
     const card = createElement(
@@ -87,7 +95,9 @@
       if (!response.ok) throw new Error(`文章数据加载失败：${response.status}`);
       const payload = await response.json();
       if (!Array.isArray(payload)) throw new Error("文章数据格式不正确");
-      articles = payload;
+      articles = payload
+        .filter((article) => !article.status || article.status === "published")
+        .map(normalizeArticle);
 
       const total = document.querySelector("[data-article-total]");
       if (total) total.textContent = String(articles.length).padStart(2, "0");
@@ -114,9 +124,6 @@
       render();
     });
 
-    document.querySelector("[data-subscribe-form]")?.addEventListener("submit", (event) => {
-      event.preventDefault();
-    });
   };
 
   if (document.readyState === "loading") {

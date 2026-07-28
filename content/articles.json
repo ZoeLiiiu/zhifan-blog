@@ -1,7 +1,7 @@
 [
   {
     "id": "slow-work",
-    "category": "专业经验",
+    "category": "项目经验",
     "date": "2026.07.12",
     "readTime": "6 分钟",
     "title": "把复杂的事，讲成别人听得懂的事",
@@ -15,13 +15,13 @@
   },
   {
     "id": "small-launch",
-    "category": "项目复盘",
+    "category": "项目经验",
     "date": "2026.06.28",
     "readTime": "8 分钟",
     "title": "一个小功能上线后，我学会了先问为什么",
     "excerpt": "复盘不是寻找谁做错了，而是找出系统怎样才能更温柔地工作。",
     "body": "这次上线最有价值的部分，不是交付了多少代码，而是让我们看见了需求、节奏和反馈之间的缝隙。下一次，我会把验证提前一周。",
-    "accent": "coral",
+    "accent": "mint",
     "status": "published",
     "createdAt": "2026-06-28T00:00:00.000Z",
     "updatedAt": "2026-06-28T00:00:00.000Z",

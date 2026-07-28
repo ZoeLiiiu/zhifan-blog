@@ -35,8 +35,7 @@ const statusLabels: Record<StatusFilter, string> = {
 };
 
 const categoryAccent: Record<ArticleDraft["category"], ArticleDraft["accent"]> = {
-  专业经验: "mint",
-  项目复盘: "coral",
+  项目经验: "mint",
   生活随想: "sky",
 };
 
@@ -50,7 +49,7 @@ function today() {
 
 function emptyDraft(): ArticleDraft {
   return {
-    category: "专业经验",
+    category: "项目经验",
     date: today(),
     readTime: "5 分钟",
     title: "",

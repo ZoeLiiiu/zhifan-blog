@@ -3,6 +3,7 @@ import { articles } from "@/db/schema";
 import { parseArticleInput } from "@/lib/article-input";
 import { authorizeAdminRequest, validateMutationRequest } from "@/lib/admin-auth";
 import { getArticleDb, publishedAtFor, toArticle } from "@/lib/articles-server";
+import { normalizeArticleAccent, normalizeArticleCategory } from "@/lib/articles";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       : "draft";
     const nextStatus = parsed.value.status ?? currentStatus;
     const nextBody = parsed.value.body ?? existing.body;
+    const nextCategory = normalizeArticleCategory(parsed.value.category ?? existing.category);
+    const nextAccent = normalizeArticleAccent(nextCategory, parsed.value.accent ?? existing.accent);
     if (nextStatus === "published" && !nextBody.trim()) {
       return Response.json({ error: "发布文章前请先填写正文" }, { status: 400 });
     }
@@ -46,6 +49,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       .update(articles)
       .set({
         ...parsed.value,
+        category: nextCategory,
+        accent: nextAccent,
         status: nextStatus,
         updatedAt: new Date().toISOString(),
         publishedAt: publishedAtFor(nextStatus, existing.publishedAt),

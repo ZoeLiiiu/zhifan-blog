@@ -124,7 +124,6 @@ async function state(cdp) {
   return evaluate(cdp, `({
     y: Math.round(window.scrollY),
     latest: Math.round(document.querySelector('#latest').getBoundingClientRect().top + window.scrollY),
-    about: Math.round(document.querySelector('#about').getBoundingClientRect().top + window.scrollY),
     hash: window.location.hash,
     timeOrigin: performance.timeOrigin,
     behavior: getComputedStyle(document.documentElement).scrollBehavior,
@@ -199,6 +198,16 @@ try {
   assert.equal(initial.rscRequest, false);
   assert.equal(initial.visibleArticles, 6);
   assert.equal(initial.loadMoreHidden, false);
+  const structure = await evaluate(cdp, `({
+    filters: [...document.querySelectorAll('[data-filter]')].map((button) => button.dataset.filter),
+    hasAbout: !!document.querySelector('#about'),
+    hasSubscribe: !!document.querySelector('#subscribe'),
+    longTermCount: [...document.querySelectorAll('.signal-bar div')].find((item) => item.textContent.includes('长期栏目'))?.querySelector('strong')?.textContent,
+  })`);
+  assert.deepEqual(structure.filters, ["全部", "项目经验", "生活随想"]);
+  assert.equal(structure.hasAbout, false);
+  assert.equal(structure.hasSubscribe, false);
+  assert.equal(structure.longTermCount, "02");
 
   await evaluate(cdp, "document.querySelector('a[href=\\\"#latest\\\"]').click()");
   await delay(250);
@@ -216,36 +225,18 @@ try {
   assert.ok(settledWheel.y >= afterWheel.y - 2, `滚轮后位置被拉回：${JSON.stringify({ afterWheel, settledWheel })}`);
   assert.equal(settledWheel.timeOrigin, initial.timeOrigin);
 
-  await evaluate(cdp, "document.querySelector('a[href=\\\"#about\\\"]').click()");
-  await delay(250);
-  const about = await state(cdp);
-  assert.equal(about.hash, "#about");
-  assert.ok(Math.abs(about.y - about.about) <= 2, `关于锚点定位错误：${JSON.stringify(about)}`);
-  await cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: 640, y: 450, deltaY: 360, deltaX: 0 });
-  await delay(180);
-  const aboutWheel = await state(cdp);
-  await delay(1000);
-  const aboutSettled = await state(cdp);
-  assert.ok(aboutSettled.y >= aboutWheel.y - 2, `关于页滚轮后位置被拉回：${JSON.stringify({ aboutWheel, aboutSettled })}`);
-
-  await evaluate(cdp, "history.back()");
-  await delay(350);
-  const back = await state(cdp);
-  assert.equal(back.hash, "#latest");
-  assert.ok(Math.abs(back.y - back.latest) <= 2, `后退未恢复文章锚点：${JSON.stringify(back)}`);
-  assert.equal(back.timeOrigin, initial.timeOrigin, "前进后退不应触发整页重载");
-
   await evaluate(cdp, "document.querySelector('[data-load-more]').click()");
   const loaded = await state(cdp);
   assert.equal(loaded.visibleArticles, 7);
   assert.equal(loaded.loadMoreHidden, true);
-  const accentColors = await evaluate(cdp, `[...new Set([...document.querySelectorAll('[data-article-id]')].map((card) => getComputedStyle(card).borderTopColor))]`);
-  assert.ok(accentColors.length >= 3, `三种文章配色应明显不同：${JSON.stringify(accentColors)}`);
+  const projectCards = await evaluate(cdp, `[...document.querySelectorAll('[data-article-category="项目经验"]')].map((card) => ({ className: card.className, accent: card.dataset.articleAccent }))`);
+  assert.equal(projectCards.length, 4);
+  assert.ok(projectCards.every((card) => card.className.includes("card-mint") && card.accent === "mint"), `项目经验应统一使用薄荷绿：${JSON.stringify(projectCards)}`);
 
-  await evaluate(cdp, "document.querySelector('[data-filter=\\\"项目复盘\\\"]').click()");
+  await evaluate(cdp, "document.querySelector('[data-filter=\\\"项目经验\\\"]').click()");
   await delay(250);
   const category = await state(cdp);
-  assert.equal(category.visibleArticles, 2);
+  assert.equal(category.visibleArticles, 4);
   assert.equal(category.loadMoreHidden, true);
 
   const articleHref = await evaluate(cdp, "document.querySelector('[data-read-article]').href");
@@ -264,7 +255,7 @@ try {
   assert.ok(detail.articleTop < 900, `正文标题区应在首屏可见：${JSON.stringify(detail)}`);
   assert.ok(detail.title.length > 0);
   assert.ok(detail.body.length > 0);
-  assert.match(detail.accent, /accent-(?:mint|coral|sky)/);
+  assert.match(detail.accent, /accent-mint/);
 
   await evaluate(cdp, "history.back()");
   await waitForPage(cdp);
@@ -276,7 +267,7 @@ try {
   const missing = await waitForArticle(cdp, "error");
   assert.match(missing.title, /文章暂时不在这里/);
 
-  console.log(JSON.stringify({ initial, latest, afterWheel, settledWheel, about, aboutWheel, aboutSettled, back, loaded, category, detail, returned, missing }, null, 2));
+  console.log(JSON.stringify({ initial, structure, latest, afterWheel, settledWheel, loaded, projectCards, category, detail, returned, missing }, null, 2));
 } finally {
   if (cdp) {
     try {

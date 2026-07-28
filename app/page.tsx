@@ -64,11 +64,7 @@ export default function Home() {
             首页
           </a>
           <a href="#latest">文章</a>
-          <a href="#about">关于</a>
         </nav>
-        <a className="header-link" href="#subscribe">
-          订阅更新 <span aria-hidden="true">↗</span>
-        </a>
       </header>
 
       <section className="hero section-shell" id="top">
@@ -84,7 +80,6 @@ export default function Home() {
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href="#latest">从最近一篇开始 <span aria-hidden="true">↓</span></a>
-            <a className="button button-quiet" href="#about">认识知返 <span aria-hidden="true">→</span></a>
           </div>
         </div>
 
@@ -106,7 +101,7 @@ export default function Home() {
 
       <section className="signal-bar section-shell" aria-label="知返内容概览">
         <div><strong>{String(articles.length).padStart(2, "0")}</strong><span>篇文章</span></div>
-        <div><strong>03</strong><span>个长期栏目</span></div>
+        <div><strong>{String(categories.length).padStart(2, "0")}</strong><span>个长期栏目</span></div>
         <div><strong>01</strong><span>个持续更新的人</span></div>
         <p>写给正在路上的你，也写给未来的我。</p>
       </section>
@@ -183,37 +178,9 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="about section-shell" id="about">
-        <div className="about-portrait" aria-hidden="true">
-          <div className="portrait-sun" />
-          <div className="portrait-shape" />
-          <span>把日子<br />过成自己的<br />样子</span>
-        </div>
-        <div className="about-copy">
-          <p className="eyebrow"><span /> 关于知返</p>
-          <h2>有些答案，<br /><em>要走一段路才会遇见。</em></h2>
-          <p>我是知返的记录者。白天做需要耐心和好奇心的工作，闲下来就观察人、读书、写字。这个小站没有标准答案，只有一些被认真想过的事。</p>
-          <p>如果你也在寻找自己的节奏，希望这里的文字能成为一盏不刺眼的小灯。</p>
-          <a className="text-link" href="mailto:hello@zhifan.example">写信给我 <span aria-hidden="true">↗</span></a>
-        </div>
-      </section>
-
-      <section className="subscribe section-shell" id="subscribe">
-        <div>
-          <p className="eyebrow light"><span /> 每月一封</p>
-          <h2>把值得回看的文字，<br /><em>放进你的收件箱。</em></h2>
-        </div>
-        <form className="subscribe-form" onSubmit={(event) => event.preventDefault()} data-subscribe-form>
-          <label className="sr-only" htmlFor="email">你的邮箱</label>
-          <input id="email" type="email" placeholder="输入你的邮箱地址" required />
-          <button type="submit">订阅 <span aria-hidden="true">→</span></button>
-          <p>不频繁打扰，随时可以取消。</p>
-        </form>
-      </section>
-
       <footer className="site-footer section-shell">
         <div className="footer-brand"><strong>知返</strong><span>让走过的路，留下可以回看的光。</span></div>
-        <div className="footer-links"><a href="#top">回到顶部 ↑</a><a href="#latest">文章</a><a href="#about">关于</a></div>
+        <div className="footer-links"><a href="#top">回到顶部 ↑</a><a href="#latest">文章</a></div>
         <small>© 2026 知返 · 用心记录，慢慢生长</small>
       </footer>
     </main>
