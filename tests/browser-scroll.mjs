@@ -101,6 +101,25 @@ async function waitForPage(cdp) {
   throw new Error(`页面加载超时：${JSON.stringify(lastState)}`);
 }
 
+async function waitForArticle(cdp, expected = "article") {
+  let lastState;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    lastState = await evaluate(cdp, `({
+      readyState: document.readyState,
+      articleVisible: !!document.querySelector('[data-article]:not([hidden])'),
+      errorVisible: !!document.querySelector('[data-error]:not([hidden])'),
+      title: document.title,
+      url: location.href,
+    })`);
+    if (lastState?.readyState === "complete" && (
+      (expected === "article" && lastState.articleVisible) ||
+      (expected === "error" && lastState.errorVisible)
+    )) return lastState;
+    await delay(100);
+  }
+  throw new Error(`文章页加载超时：${JSON.stringify(lastState)}`);
+}
+
 async function state(cdp) {
   return evaluate(cdp, `({
     y: Math.round(window.scrollY),
@@ -112,6 +131,7 @@ async function state(cdp) {
     scripts: [...document.scripts].map((script) => script.src || 'inline'),
     rscRequest: performance.getEntriesByType('resource').some((entry) => /\\.rsc(?:[?\\/]|$)/i.test(entry.name)),
     visibleArticles: [...document.querySelectorAll('[data-article-id]')].filter((card) => !card.hidden).length,
+    loadMoreHidden: document.querySelector('[data-load-more-row]')?.hidden ?? true,
   })`);
 }
 
@@ -177,6 +197,8 @@ try {
   assert.equal(initial.scripts.length, 1);
   assert.match(initial.scripts[0], /\/static\.js(?:[?#]|$)/);
   assert.equal(initial.rscRequest, false);
+  assert.equal(initial.visibleArticles, 6);
+  assert.equal(initial.loadMoreHidden, false);
 
   await evaluate(cdp, "document.querySelector('a[href=\\\"#latest\\\"]').click()");
   await delay(250);
@@ -213,20 +235,48 @@ try {
   assert.ok(Math.abs(back.y - back.latest) <= 2, `后退未恢复文章锚点：${JSON.stringify(back)}`);
   assert.equal(back.timeOrigin, initial.timeOrigin, "前进后退不应触发整页重载");
 
-  await evaluate(cdp, "document.querySelector('[data-read-article]').click()");
-  const preview = await evaluate(cdp, "({ hidden: document.querySelector('[data-article-preview]').hidden, title: document.querySelector('[data-preview-title]').textContent })");
-  assert.equal(preview.hidden, false);
-  assert.ok(preview.title.length > 0);
-  await evaluate(cdp, "document.querySelector('[data-close-preview]').click()");
-  assert.equal(await evaluate(cdp, "document.querySelector('[data-article-preview]').hidden"), true);
+  await evaluate(cdp, "document.querySelector('[data-load-more]').click()");
+  const loaded = await state(cdp);
+  assert.equal(loaded.visibleArticles, 7);
+  assert.equal(loaded.loadMoreHidden, true);
+  const accentColors = await evaluate(cdp, `[...new Set([...document.querySelectorAll('[data-article-id]')].map((card) => getComputedStyle(card).borderTopColor))]`);
+  assert.ok(accentColors.length >= 3, `三种文章配色应明显不同：${JSON.stringify(accentColors)}`);
 
-  await evaluate(cdp, "document.querySelector('[data-category-trigger=\\\"项目复盘\\\"]').click()");
+  await evaluate(cdp, "document.querySelector('[data-filter=\\\"项目复盘\\\"]').click()");
   await delay(250);
   const category = await state(cdp);
-  assert.equal(category.visibleArticles, 1);
-  assert.ok(Math.abs(category.y - category.latest) <= 2, `分类卡片未定位文章区：${JSON.stringify(category)}`);
+  assert.equal(category.visibleArticles, 2);
+  assert.equal(category.loadMoreHidden, true);
 
-  console.log(JSON.stringify({ initial, latest, afterWheel, settledWheel, about, aboutWheel, aboutSettled, back, category }, null, 2));
+  const articleHref = await evaluate(cdp, "document.querySelector('[data-read-article]').href");
+  await cdp.send("Page.navigate", { url: articleHref });
+  await waitForArticle(cdp);
+  const detail = await evaluate(cdp, `({
+    url: location.href,
+    y: Math.round(window.scrollY),
+    articleTop: Math.round(document.querySelector('[data-article]').getBoundingClientRect().top),
+    title: document.querySelector('[data-title]').textContent,
+    body: document.querySelector('[data-body]').textContent,
+    accent: document.querySelector('[data-article]').className,
+  })`);
+  assert.match(detail.url, /article\.html\?id=/);
+  assert.equal(detail.y, 0);
+  assert.ok(detail.articleTop < 900, `正文标题区应在首屏可见：${JSON.stringify(detail)}`);
+  assert.ok(detail.title.length > 0);
+  assert.ok(detail.body.length > 0);
+  assert.match(detail.accent, /accent-(?:mint|coral|sky)/);
+
+  await evaluate(cdp, "history.back()");
+  await waitForPage(cdp);
+  const returned = await state(cdp);
+  assert.ok(returned.visibleArticles > 0);
+
+  const missingUrl = await evaluate(cdp, "new URL('./article.html?id=missing-article', location.href).href");
+  await cdp.send("Page.navigate", { url: missingUrl });
+  const missing = await waitForArticle(cdp, "error");
+  assert.match(missing.title, /文章暂时不在这里/);
+
+  console.log(JSON.stringify({ initial, latest, afterWheel, settledWheel, about, aboutWheel, aboutSettled, back, loaded, category, detail, returned, missing }, null, 2));
 } finally {
   if (cdp) {
     try {

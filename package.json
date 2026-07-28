@@ -9,6 +9,8 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "export:static": "node scripts/export-static.mjs",
+    "sync:pages": "node scripts/sync-pages.mjs",
+    "release:pages": "npm run build && npm run export:static && npm run sync:pages",
     "start": "vinext start",
     "test": "npm run build && npm run export:static && node --test tests/rendered-html.test.mjs tests/admin-contract.test.mjs tests/ecs-admin.test.mjs",
     "test:browser": "node tests/browser-scroll.mjs",

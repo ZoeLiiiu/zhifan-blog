@@ -3,16 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   categories,
-  categoryColors,
   seedArticles,
   type Article,
   type Category,
 } from "@/lib/articles";
 
+const pageSize = 6;
+
 export default function Home() {
   const [articles, setArticles] = useState<Article[]>(seedArticles);
   const [activeCategory, setActiveCategory] = useState<Category>("全部");
-  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [visibleCount, setVisibleCount] = useState(pageSize);
 
   useEffect(() => {
     let active = true;
@@ -37,10 +38,12 @@ export default function Home() {
         : articles.filter((article) => article.category === activeCategory),
     [activeCategory, articles],
   );
+  const visibleArticles = filteredArticles.slice(0, visibleCount);
+  const remainingCount = Math.max(filteredArticles.length - visibleCount, 0);
 
   const selectCategory = (category: Category) => {
     setActiveCategory(category);
-    setSelectedArticle(null);
+    setVisibleCount(pageSize);
   };
 
   return (
@@ -111,21 +114,21 @@ export default function Home() {
       <section className="latest section-shell" id="latest">
         <div className="section-heading">
           <div>
-            <p className="eyebrow"><span /> 最近更新</p>
-            <h2>把走过的路，<br /><em>整理成可以分享的光。</em></h2>
+            <p className="eyebrow"><span /> 文章</p>
+            <h2>从想读的方向，<br /><em>找到一篇文章。</em></h2>
           </div>
-          <p className="section-intro">不追赶热点，只记录那些在时间里依然有用的东西。</p>
+          <p className="section-intro">按时间更新，也可以按分类慢慢浏览。</p>
         </div>
 
-        <div className="filter-row" role="tablist" aria-label="文章分类">
+        <div className="filter-row" aria-label="文章分类">
           {(["全部", ...categories.map((item) => item.label)] as Category[]).map((category) => (
             <button
               key={category}
               className={`filter-pill ${activeCategory === category ? "selected" : ""}`}
               onClick={() => selectCategory(category)}
               data-filter={category}
-              role="tab"
-              aria-selected={activeCategory === category}
+              type="button"
+              aria-pressed={activeCategory === category}
             >
               {category}
             </button>
@@ -133,7 +136,7 @@ export default function Home() {
         </div>
 
         <div className="article-grid">
-          {filteredArticles.map((article, index) => (
+          {visibleArticles.map((article, index) => (
             <article
               className={`article-card card-${article.accent} ${index === 0 ? "featured" : ""}`}
               key={article.id}
@@ -151,60 +154,32 @@ export default function Home() {
               <p>{article.excerpt}</p>
               <div className="card-footer">
                 <span>{article.readTime}</span>
-                <button
+                <a
                   className="read-link"
-                  onClick={() => setSelectedArticle(article)}
+                  href={`./article.html?id=${encodeURIComponent(article.id)}`}
                   data-read-article={article.id}
                   aria-label={`阅读：${article.title}`}
                 >
-                  阅读全文 <span aria-hidden="true">↗</span>
-                </button>
+                  阅读全文 <span aria-hidden="true">→</span>
+                </a>
               </div>
             </article>
           ))}
         </div>
 
-        <div className="article-preview" aria-live="polite" hidden={!selectedArticle} data-article-preview>
-          <div>
-            <p className="eyebrow">
-              <span /> <b data-preview-meta>{selectedArticle ? `正在阅读 · ${selectedArticle.category}` : ""}</b>
-            </p>
-            <h3 data-preview-title>{selectedArticle?.title ?? ""}</h3>
-            <p data-preview-body>{selectedArticle?.body ?? ""}</p>
-          </div>
-          <button
-            className="close-preview"
-            onClick={() => setSelectedArticle(null)}
-            data-close-preview
-            aria-label="关闭文章预览"
-          >
-            ×
-          </button>
-        </div>
-      </section>
+        {!filteredArticles.length && (
+          <p className="article-empty" data-article-empty>这个分类还没有文章，先去别处看看吧。</p>
+        )}
 
-      <section className="categories section-shell" id="categories">
-        <div className="section-heading compact">
-          <div>
-            <p className="eyebrow"><span /> 三条线索</p>
-            <h2>从不同的入口，<br /><em>走回自己。</em></h2>
-          </div>
-        </div>
-        <div className="category-grid">
-          {categories.map((item, index) => (
-            <button
-              className={`category-card category-${categoryColors[item.label]}`}
-              key={item.label}
-              onClick={() => selectCategory(item.label)}
-              data-category-trigger={item.label}
-            >
-              <span className="category-index">0{index + 1}</span>
-              <span className="category-icon" aria-hidden="true">{index === 0 ? "↗" : index === 1 ? "↺" : "✧"}</span>
-              <strong>{item.label}</strong>
-              <span>{item.note}</span>
-              <small>{String(articles.filter((article) => article.category === item.label).length).padStart(2, "0")} 篇 <b>→</b></small>
-            </button>
-          ))}
+        <div className="load-more-row" hidden={!remainingCount}>
+          <button
+            className="load-more"
+            type="button"
+            onClick={() => setVisibleCount((count) => count + pageSize)}
+            data-load-more
+          >
+            加载更多 <span>还有 {remainingCount} 篇</span>
+          </button>
         </div>
       </section>
 

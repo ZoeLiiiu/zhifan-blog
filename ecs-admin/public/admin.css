@@ -90,7 +90,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--mint); box-shado
 .danger { color: var(--danger); }
 .editor-panel form { display: grid; gap: 16px; }
 .field-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.field-row:last-of-type { grid-template-columns: repeat(2, minmax(0, 180px)); }
+.field-row:last-of-type { grid-template-columns: minmax(220px, 1fr) minmax(0, 180px); }
+.accent-preview { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; font-weight: 500; line-height: 1.45; }
+.accent-preview i { flex: 0 0 auto; width: 34px; height: 14px; border: 1px solid rgba(35,52,47,.08); border-radius: 99px; background: #dcefe3; box-shadow: inset 5px 0 0 #79a88f; }
+.accent-preview b { color: var(--ink); font-weight: 800; }
+.accent-preview.accent-coral i { background: #f3d8cc; box-shadow: inset 5px 0 0 #c47e6c; }
+.accent-preview.accent-sky i { background: #dcecf0; box-shadow: inset 5px 0 0 #75a6af; }
 .editor-actions { display: flex; min-height: 50px; align-items: center; justify-content: space-between; gap: 15px; border-top: 1px solid var(--line); padding-top: 16px; }
 .editor-actions p { margin: 0; color: var(--muted); font-size: 12px; }
 .editor-actions > div { display: flex; gap: 9px; }

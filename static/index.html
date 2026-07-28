@@ -54,7 +54,7 @@
       </section>
 
       <section class="signal-bar section-shell" aria-label="知返内容概览">
-        <div><strong data-article-total>07</strong><span>篇文章</span></div>
+        <div><strong data-article-total>{{ARTICLE_COUNT}}</strong><span>篇文章</span></div>
         <div><strong>03</strong><span>个长期栏目</span></div>
         <div><strong>01</strong><span>个持续更新的人</span></div>
         <p>写给正在路上的你，也写给未来的我。</p>
@@ -77,47 +77,12 @@
         </div>
 
         <div class="article-grid">
-          <article class="article-card card-sky featured" data-article-id="article-38d59afb-ff44-45fe-b39c-d45f985da204" data-article-category="项目复盘" data-article-accent="sky">
-  <div class="card-topline"><span class="category-dot"><i></i></span><span>项目复盘</span><span class="card-date">2026.07.28</span></div>
-  <h3>测试3</h3>
-  <p>测试3</p>
-  <div class="card-footer"><span>5 分钟</span><a class="read-link" href="./article.html?id=article-38d59afb-ff44-45fe-b39c-d45f985da204" data-read-article="article-38d59afb-ff44-45fe-b39c-d45f985da204" aria-label="阅读：测试3">阅读全文 <span aria-hidden="true">→</span></a></div>
-</article>
-<article class="article-card card-coral" data-article-id="article-9bc2c65c-6814-4e67-a168-42c903f2b15a" data-article-category="专业经验" data-article-accent="coral">
-  <div class="card-topline"><span class="category-dot"><i></i></span><span>专业经验</span><span class="card-date">2026.07.28</span></div>
-  <h3>测试2</h3>
-  <p>测试2</p>
-  <div class="card-footer"><span>5 分钟</span><a class="read-link" href="./article.html?id=article-9bc2c65c-6814-4e67-a168-42c903f2b15a" data-read-article="article-9bc2c65c-6814-4e67-a168-42c903f2b15a" aria-label="阅读：测试2">阅读全文 <span aria-hidden="true">→</span></a></div>
-</article>
-<article class="article-card card-mint" data-article-id="article-86b99b99-66f7-4eb9-99c4-7df5ce2922b8" data-article-category="生活随想" data-article-accent="mint">
-  <div class="card-topline"><span class="category-dot"><i></i></span><span>生活随想</span><span class="card-date">2026.07.28</span></div>
-  <h3>测试1</h3>
-  <p>测试1</p>
-  <div class="card-footer"><span>5 分钟</span><a class="read-link" href="./article.html?id=article-86b99b99-66f7-4eb9-99c4-7df5ce2922b8" data-read-article="article-86b99b99-66f7-4eb9-99c4-7df5ce2922b8" aria-label="阅读：测试1">阅读全文 <span aria-hidden="true">→</span></a></div>
-</article>
-<article class="article-card card-mint" data-article-id="article-5a51661e-638a-431e-b83e-b1c69e0e4c7a" data-article-category="生活随想" data-article-accent="mint">
-  <div class="card-topline"><span class="category-dot"><i></i></span><span>生活随想</span><span class="card-date">2026.06.28</span></div>
-  <h3>测试</h3>
-  <p>来煎人寿</p>
-  <div class="card-footer"><span>5 分钟</span><a class="read-link" href="./article.html?id=article-5a51661e-638a-431e-b83e-b1c69e0e4c7a" data-read-article="article-5a51661e-638a-431e-b83e-b1c69e0e4c7a" aria-label="阅读：测试">阅读全文 <span aria-hidden="true">→</span></a></div>
-</article>
-<article class="article-card card-mint" data-article-id="slow-work" data-article-category="专业经验" data-article-accent="mint">
-  <div class="card-topline"><span class="category-dot"><i></i></span><span>专业经验</span><span class="card-date">2026.07.12</span></div>
-  <h3>把复杂的事，讲成别人听得懂的事</h3>
-  <p>好的表达不是把话说满，而是给对方一条可以走下去的路。</p>
-  <div class="card-footer"><span>6 分钟</span><a class="read-link" href="./article.html?id=slow-work" data-read-article="slow-work" aria-label="阅读：把复杂的事，讲成别人听得懂的事">阅读全文 <span aria-hidden="true">→</span></a></div>
-</article>
-<article class="article-card card-coral" data-article-id="small-launch" data-article-category="项目复盘" data-article-accent="coral">
-  <div class="card-topline"><span class="category-dot"><i></i></span><span>项目复盘</span><span class="card-date">2026.06.28</span></div>
-  <h3>一个小功能上线后，我学会了先问为什么</h3>
-  <p>复盘不是寻找谁做错了，而是找出系统怎样才能更温柔地工作。</p>
-  <div class="card-footer"><span>8 分钟</span><a class="read-link" href="./article.html?id=small-launch" data-read-article="small-launch" aria-label="阅读：一个小功能上线后，我学会了先问为什么">阅读全文 <span aria-hidden="true">→</span></a></div>
-</article>
+          <!-- ARTICLE_CARDS -->
         </div>
         <p class="article-empty" data-article-empty hidden>这个分类还没有文章，先去别处看看吧。</p>
-        <div class="load-more-row" data-load-more-row >
+        <div class="load-more-row" data-load-more-row {{LOAD_MORE_HIDDEN}}>
           <button class="load-more" type="button" data-load-more>
-            加载更多 <span data-load-more-count>还有 1 篇</span>
+            加载更多 <span data-load-more-count>还有 {{REMAINING_COUNT}} 篇</span>
           </button>
         </div>
       </section>

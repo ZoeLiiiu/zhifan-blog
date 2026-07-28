@@ -10,11 +10,14 @@
   const editorTitle = document.querySelector("[data-editor-title]");
   const editorMessage = document.querySelector("[data-editor-message]");
   const publishState = document.querySelector("[data-publish-state]");
+  const accentPreview = document.querySelector("[data-accent-preview]");
+  const accentName = document.querySelector("[data-accent-name]");
   const deleteButton = document.querySelector("[data-delete]");
   const deleteDialog = document.querySelector("[data-delete-dialog]");
   const deleteCopy = document.querySelector("[data-delete-copy]");
   const totalCount = document.querySelector("[data-total-count]");
   const statusLabels = { published: "已发布", draft: "草稿", archived: "已归档" };
+  const accentLabels = { mint: "薄荷绿", coral: "珊瑚橙", sky: "天空蓝" };
   let articles = [];
   let selectedId = null;
   let busy = false;
@@ -56,6 +59,12 @@
 
   const currentArticle = () => articles.find((article) => article.id === selectedId) || null;
 
+  const updateAccentPreview = () => {
+    const accent = editorForm.elements.accent.value;
+    accentPreview.className = `accent-preview accent-${accent}`;
+    accentName.textContent = accentLabels[accent] || accent;
+  };
+
   const resetEditor = () => {
     selectedId = null;
     editorForm.reset();
@@ -64,6 +73,7 @@
     editorForm.elements.readTime.value = "5 分钟";
     editorForm.elements.accent.value = "mint";
     editorForm.elements.status.value = "draft";
+    updateAccentPreview();
     editorTitle.textContent = "新建文章";
     editorMessage.textContent = "";
     deleteButton.hidden = true;
@@ -75,6 +85,7 @@
     for (const name of ["category", "date", "readTime", "title", "excerpt", "body", "accent", "status"]) {
       editorForm.elements[name].value = article[name] || "";
     }
+    updateAccentPreview();
     editorTitle.textContent = "编辑文章";
     editorMessage.textContent = "";
     deleteButton.hidden = false;
@@ -191,6 +202,7 @@
   document.querySelector("[data-new-article]").addEventListener("click", resetEditor);
   searchInput.addEventListener("input", renderList);
   filterSelect.addEventListener("change", renderList);
+  editorForm.elements.accent.addEventListener("change", updateAccentPreview);
 
   deleteButton.addEventListener("click", () => {
     const article = currentArticle();
