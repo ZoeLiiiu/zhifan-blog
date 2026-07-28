@@ -5,7 +5,7 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("管理后台具备持久化、鉴权和完整 CRUD 契约", async () => {
-  const [hosting, schema, migration, adminPage, adminList, adminItem, publicApi, articleServer, home] = await Promise.all([
+  const [hosting, schema, migration, adminPage, adminList, adminItem, publicApi, articleServer, home, ecsAdminHtml, ecsAdminScript] = await Promise.all([
     read(".openai/hosting.json"),
     read("db/schema.ts"),
     read("drizzle/0000_skinny_jack_murdock.sql"),
@@ -15,6 +15,8 @@ test("管理后台具备持久化、鉴权和完整 CRUD 契约", async () => {
     read("app/api/articles/route.ts"),
     read("lib/articles-server.ts"),
     read("app/page.tsx"),
+    read("ecs-admin/public/index.html"),
+    read("ecs-admin/public/admin.js"),
   ]);
 
   assert.match(hosting, /"d1"\s*:\s*"DB"/);
@@ -33,4 +35,10 @@ test("管理后台具备持久化、鉴权和完整 CRUD 契约", async () => {
   assert.match(articleServer, /listArticles\("published"\)/);
   assert.match(home, /fetch\("\/api\/articles"/);
   assert.match(home, /Array\.isArray\(payload\?\.articles\)/);
+  assert.match(home, /const pageSize = 6/);
+  assert.match(home, /article\.html\?id=/);
+  assert.doesNotMatch(home, /三条线索|data-category-trigger|article-preview/);
+  assert.match(ecsAdminHtml, /data-accent-preview/);
+  assert.match(ecsAdminHtml, /用于文章卡片及正文标题区/);
+  assert.match(ecsAdminScript, /updateAccentPreview/);
 });

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>正在打开文章 · 知返</title>
+    <meta name="description" content="知返博客文章" />
+    <link rel="icon" href="./favicon.svg" />
+    <link rel="stylesheet" href="./article.css" />
+  </head>
+  <body>
+    <header class="reader-header">
+      <a class="brand" href="./" aria-label="返回知返首页">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
+        <span><strong>知返</strong><small>ZHIFAN / NOTES</small></span>
+      </a>
+      <a class="reader-back" href="./#latest" data-back>← 返回文章列表</a>
+    </header>
+
+    <main class="reader-shell">
+      <p class="reader-loading" data-loading>正在翻开这篇文章…</p>
+
+      <article class="reader-article accent-mint" data-article hidden>
+        <header class="reader-hero">
+          <p class="reader-meta">
+            <span data-category></span>
+            <span aria-hidden="true">·</span>
+            <time data-date></time>
+            <span aria-hidden="true">·</span>
+            <span data-read-time></span>
+          </p>
+          <h1 data-title></h1>
+          <p class="reader-excerpt" data-excerpt></p>
+        </header>
+        <div class="reader-body" data-body></div>
+        <footer class="reader-footer">
+          <span>感谢你读到这里。</span>
+          <a href="./#latest">继续看看其他文章 →</a>
+        </footer>
+      </article>
+
+      <section class="reader-error" data-error hidden>
+        <span aria-hidden="true">✦</span>
+        <h1>这篇文章暂时不在这里</h1>
+        <p>它可能已经下线，或者链接不完整。回到文章列表，再选一篇慢慢读吧。</p>
+        <a href="./#latest">返回文章列表 →</a>
+      </section>
+    </main>
+
+    <script src="./article.js" defer></script>
+  </body>
+</html>

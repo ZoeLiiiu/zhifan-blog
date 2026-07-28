@@ -4,12 +4,16 @@ import test from "node:test";
 
 const siteRoot = new URL("../site/", import.meta.url);
 
-test("导出可直接发布的知返静态博客", async () => {
-  const [html, notFoundHtml, script, articles] = await Promise.all([
+test("导出可扩展的知返静态博客与独立文章页", async () => {
+  const [html, notFoundHtml, script, articles, articleHtml, articleScript, articleCss, siteCss] = await Promise.all([
     readFile(new URL("index.html", siteRoot), "utf8"),
     readFile(new URL("404.html", siteRoot), "utf8"),
     readFile(new URL("static.js", siteRoot), "utf8"),
     readFile(new URL("articles.json", siteRoot), "utf8").then(JSON.parse),
+    readFile(new URL("article.html", siteRoot), "utf8"),
+    readFile(new URL("article.js", siteRoot), "utf8"),
+    readFile(new URL("article.css", siteRoot), "utf8"),
+    readFile(new URL("site.css", siteRoot), "utf8"),
   ]);
 
   for (const document of [html, notFoundHtml]) {
@@ -19,16 +23,40 @@ test("导出可直接发布的知返静态博客", async () => {
     assert.match(document, /href="#latest"/);
     assert.match(document, /href="#about"/);
     assert.match(document, /data-filter="全部"/);
-    assert.match(document, /data-article-preview/);
+    assert.match(document, /aria-pressed="true"/);
+    assert.match(document, /data-load-more/);
+    assert.match(document, /\.\/article\.html\?id=/);
     assert.match(document, /<script src="\.\/static\.js" defer><\/script>/);
-    assert.doesNotMatch(document, /__VINEXT|\.rsc(?:\b|[?"'])|modulepreload|scrollRestoration/i);
+    assert.doesNotMatch(document, /三条线索|data-category-trigger|data-article-preview/);
+    assert.doesNotMatch(document, /__VINEXT|\.rsc(?:\b|[?"'])|modulepreload/i);
   }
 
-  assert.match(script, /scrollRestoration\s*=\s*"auto"/);
-  assert.match(script, /scrollIntoView/);
-  assert.match(script, /data-read-article/);
-  assert.match(script, /fetch\(`\.\/articles\.json/);
-  assert.doesNotMatch(script, /addEventListener\(["'](?:wheel|popstate|hashchange)/);
-  assert.equal(articles.length, 3);
+  assert.equal((html.match(/data-article-id=/g) || []).length, 6);
+  assert.equal(articles.length, 7);
   assert.ok(articles.every((article) => article.status === "published"));
+
+  assert.match(script, /scrollRestoration\s*=\s*"auto"/);
+  assert.match(script, /const pageSize = 6/);
+  assert.match(script, /visibleCount \+= pageSize/);
+  assert.match(script, /article\.html\?id=/);
+  assert.match(script, /aria-pressed/);
+  assert.match(script, /fetch\(`\.\/articles\.json/);
+  assert.doesNotMatch(script, /data-article-preview|data-category-trigger/);
+  assert.doesNotMatch(script, /addEventListener\(["'](?:wheel|popstate|hashchange)/);
+
+  assert.match(siteCss, /\.card-mint\s*\{/);
+  assert.match(siteCss, /\.card-coral\s*\{/);
+  assert.match(siteCss, /\.card-sky\s*\{/);
+  assert.match(siteCss, /border-top:\s*5px solid var\(--accent-deep\)/);
+
+  assert.match(articleHtml, /data-article/);
+  assert.match(articleHtml, /data-body/);
+  assert.match(articleHtml, /data-error/);
+  assert.match(articleScript, /new URLSearchParams/);
+  assert.match(articleScript, /item\.status === "published"/);
+  assert.match(articleScript, /textContent = article\.body/);
+  assert.doesNotMatch(articleScript, /innerHTML/);
+  assert.match(articleCss, /white-space:\s*pre-wrap/);
+  assert.match(articleCss, /\.reader-article\.accent-coral/);
+  assert.match(articleCss, /\.reader-article\.accent-sky/);
 });
