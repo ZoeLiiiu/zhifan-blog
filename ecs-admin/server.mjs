@@ -47,8 +47,13 @@ const maxBodyBytes = 1024 * 1024;
 const ossBucket = (process.env.OSS_BUCKET || "").trim();
 const ossEndpoint = (process.env.OSS_ENDPOINT || "").trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
 const ossAccessKeyId = (process.env.OSS_ACCESS_KEY_ID || "").trim();
-const ossAccessKeySecret = process.env.OSS_ACCESS_KEY_SECRET || "";
+const configuredOssAccessKeySecret = process.env.OSS_ACCESS_KEY_SECRET || "";
 const ossSecurityToken = process.env.OSS_SECURITY_TOKEN || "";
+const ossUseEcsRamRole = /^(?:1|true|yes)$/i.test((process.env.OSS_USE_ECS_RAM_ROLE || "").trim());
+const ossEcsRamRoleName = (process.env.OSS_ECS_RAM_ROLE_NAME || "").trim();
+const ossEcsMetadataBaseUrl = (
+  process.env.OSS_ECS_METADATA_BASE_URL || "http://100.100.100.200/latest"
+).trim().replace(/\/+$/, "");
 const ossPublicBaseUrl = (process.env.OSS_PUBLIC_BASE_URL || (
   ossBucket && ossEndpoint ? `https://${ossBucket}.${ossEndpoint}` : ""
 )).trim().replace(/\/+$/, "");
@@ -67,6 +72,7 @@ const mediaTypes = new Map([
   ["video/webm", { kind: "video", extension: "webm", maxSize: 200 * 1024 * 1024 }],
 ]);
 let mutationQueue = Promise.resolve();
+let cachedOssCredentials = null;
 
 if (!passwordHash.startsWith("scrypt$")) {
   throw new Error("缺少有效的 ADMIN_PASSWORD_HASH");
@@ -273,7 +279,10 @@ async function writeArticles(articles) {
 }
 
 function mediaEnabled() {
-  return Boolean(ossBucket && ossEndpoint && ossAccessKeyId && ossAccessKeySecret && ossPublicBaseUrl);
+  const hasCredentialSource = Boolean(
+    (ossAccessKeyId && configuredOssAccessKeySecret) || ossUseEcsRamRole,
+  );
+  return Boolean(ossBucket && ossEndpoint && ossPublicBaseUrl && hasCredentialSource);
 }
 
 function mediaConfig() {
@@ -321,7 +330,97 @@ function objectPublicUrl(key) {
   return `${ossPublicBaseUrl}/${encodeObjectKey(key)}`;
 }
 
-function signPostPolicy({ key, mime, maxSize }) {
+async function fetchMetadata(path, options = {}) {
+  const response = await fetch(`${ossEcsMetadataBaseUrl}/${path.replace(/^\/+/, "")}`, {
+    ...options,
+    redirect: "error",
+    signal: AbortSignal.timeout(3000),
+  });
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new Error(`ECS 元数据服务返回 ${response.status}`);
+  }
+  return response;
+}
+
+async function fetchEcsRamRoleCredentials() {
+  let token = "";
+  try {
+    const tokenResponse = await fetchMetadata("api/token", {
+      method: "PUT",
+      headers: {
+        "X-aliyun-ecs-metadata-token-ttl-seconds": "21600",
+      },
+    });
+    token = (await tokenResponse.text()).trim();
+    if (!token) throw new Error("ECS 元数据令牌为空");
+
+    const headers = {
+      "X-aliyun-ecs-metadata-token": token,
+    };
+    let roleName = ossEcsRamRoleName;
+    if (!roleName) {
+      const roleResponse = await fetchMetadata("meta-data/ram/security-credentials/", { headers });
+      roleName = (await roleResponse.text()).trim().split(/\s+/)[0] || "";
+    }
+    if (!roleName) throw new Error("ECS 实例尚未绑定 RAM 角色");
+
+    const credentialResponse = await fetchMetadata(
+      `meta-data/ram/security-credentials/${encodeURIComponent(roleName)}`,
+      { headers },
+    );
+    const payload = await credentialResponse.json();
+    const accessKeyId = typeof payload.AccessKeyId === "string" ? payload.AccessKeyId.trim() : "";
+    const accessKeySecret = typeof payload.AccessKeySecret === "string" ? payload.AccessKeySecret : "";
+    const securityToken = typeof payload.SecurityToken === "string" ? payload.SecurityToken : "";
+    const expiresAt = Date.parse(payload.Expiration || "");
+    if (
+      payload.Code !== "Success"
+      || !accessKeyId
+      || !accessKeySecret
+      || !securityToken
+      || !Number.isFinite(expiresAt)
+    ) {
+      throw new Error("ECS RAM 角色临时凭证格式不正确");
+    }
+    return {
+      accessKeyId,
+      accessKeySecret,
+      securityToken,
+      expiresAt,
+    };
+  } catch (error) {
+    throw Object.assign(
+      new Error(`暂时无法获取 ECS RAM 角色临时凭证：${error.message}`),
+      { statusCode: 503 },
+    );
+  }
+}
+
+async function getOssCredentials() {
+  if (ossAccessKeyId && configuredOssAccessKeySecret) {
+    return {
+      accessKeyId: ossAccessKeyId,
+      accessKeySecret: configuredOssAccessKeySecret,
+      securityToken: ossSecurityToken,
+      expiresAt: Number.POSITIVE_INFINITY,
+    };
+  }
+  if (!ossUseEcsRamRole) {
+    throw Object.assign(new Error("OSS 尚未配置可用的凭证来源"), { statusCode: 503 });
+  }
+  if (
+    cachedOssCredentials
+    && cachedOssCredentials.expiresAt > Date.now() + 5 * 60 * 1000
+  ) {
+    return cachedOssCredentials;
+  }
+  cachedOssCredentials = await fetchEcsRamRoleCredentials();
+  return cachedOssCredentials;
+}
+
+async function signPostPolicy({ key, mime, maxSize }) {
+  const credentials = await getOssCredentials();
   const expiration = new Date(Date.now() + 5 * 60 * 1000).toISOString();
   const conditions = [
     ["eq", "$key", key],
@@ -330,21 +429,25 @@ function signPostPolicy({ key, mime, maxSize }) {
     ["eq", "$x-oss-object-acl", "public-read"],
     ["content-length-range", 1, maxSize],
   ];
-  if (ossSecurityToken) conditions.push(["eq", "$x-oss-security-token", ossSecurityToken]);
+  if (credentials.securityToken) {
+    conditions.push(["eq", "$x-oss-security-token", credentials.securityToken]);
+  }
   const policy = Buffer.from(JSON.stringify({ expiration, conditions }), "utf8").toString("base64");
-  const signature = createHmac("sha1", ossAccessKeySecret).update(policy).digest("base64");
+  const signature = createHmac("sha1", credentials.accessKeySecret).update(policy).digest("base64");
   return {
     uploadUrl: `https://${ossBucket}.${ossEndpoint}`,
     expiresAt: expiration,
     fields: {
       key,
-      OSSAccessKeyId: ossAccessKeyId,
+      OSSAccessKeyId: credentials.accessKeyId,
       policy,
       Signature: signature,
       "Content-Type": mime,
       success_action_status: "200",
       "x-oss-object-acl": "public-read",
-      ...(ossSecurityToken ? { "x-oss-security-token": ossSecurityToken } : {}),
+      ...(credentials.securityToken
+        ? { "x-oss-security-token": credentials.securityToken }
+        : {}),
     },
   };
 }
@@ -380,21 +483,26 @@ async function inspectPublicObject(record) {
   return declaredSize;
 }
 
-function ossAuthorization(method, key, date) {
-  const securityHeader = ossSecurityToken ? `x-oss-security-token:${ossSecurityToken}\n` : "";
+function ossAuthorization(method, key, date, credentials) {
+  const securityHeader = credentials.securityToken
+    ? `x-oss-security-token:${credentials.securityToken}\n`
+    : "";
   const canonical = `${method}\n\n\n${date}\n${securityHeader}/${ossBucket}/${key}`;
-  const signature = createHmac("sha1", ossAccessKeySecret).update(canonical).digest("base64");
-  return `OSS ${ossAccessKeyId}:${signature}`;
+  const signature = createHmac("sha1", credentials.accessKeySecret).update(canonical).digest("base64");
+  return `OSS ${credentials.accessKeyId}:${signature}`;
 }
 
 async function deleteOssObject(key) {
+  const credentials = await getOssCredentials();
   const date = new Date().toUTCString();
   const response = await fetch(`https://${ossBucket}.${ossEndpoint}/${encodeObjectKey(key)}`, {
     method: "DELETE",
     headers: {
-      Authorization: ossAuthorization("DELETE", key, date),
+      Authorization: ossAuthorization("DELETE", key, date, credentials),
       Date: date,
-      ...(ossSecurityToken ? { "x-oss-security-token": ossSecurityToken } : {}),
+      ...(credentials.securityToken
+        ? { "x-oss-security-token": credentials.securityToken }
+        : {}),
     },
   });
   if (!response.ok && response.status !== 404) {
@@ -557,7 +665,10 @@ async function handleApi(request, response, url) {
       media.unshift(record);
       await writeMedia(media);
     });
-    sendJson(response, 201, { media: record, ...signPostPolicy({ key, mime, maxSize: type.maxSize }) });
+    sendJson(response, 201, {
+      media: record,
+      ...await signPostPolicy({ key, mime, maxSize: type.maxSize }),
+    });
     return;
   }
 
