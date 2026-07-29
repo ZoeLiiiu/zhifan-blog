@@ -1,6 +1,8 @@
 {
-  "enabled": false,
-  "allowedHosts": [],
+  "enabled": true,
+  "allowedHosts": [
+    "zhifan-blog.oss-cn-guangzhou.aliyuncs.com"
+  ],
   "imageMaxBytes": 10485760,
   "videoMaxBytes": 209715200,
   "acceptedTypes": [
