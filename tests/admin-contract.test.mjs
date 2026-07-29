@@ -70,6 +70,8 @@ test("管理后台具备持久化、鉴权和完整 CRUD 契约", async () => {
   assert.match(ecsServer, /OSS_ECS_DISABLE_IMDSV1/);
   assert.match(ecsServer, /X-aliyun-ecs-metadata-token/);
   assert.match(ecsServer, /meta-data\/ram\/security-credentials/);
+  assert.match(ecsServer, /createStaticArticleHtml/);
+  assert.match(ecsServer, /docs", "article\.html/);
   assert.doesNotMatch(ecsServer, /ossAccessKeySecret\s*[,}]/);
   assert.match(ecsAdminScript, /categoryAccents = \{ 项目经验: "mint", 生活随想: "sky" \}/);
   assert.match(articleServer, /normalizeArticleCategory/);

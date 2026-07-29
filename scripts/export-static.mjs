@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { createStaticArticleHtml } from "../lib/static-media-policy.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const outputRoot = join(root, "site");
@@ -41,11 +42,6 @@ const mediaConfigSource = existsSync(join(root, "docs", "media-config.json"))
   : join(root, "content", "media-config.json");
 const allArticles = JSON.parse(await readFile(articleSource, "utf8")).map(normalizeArticle);
 const mediaConfig = JSON.parse(await readFile(mediaConfigSource, "utf8"));
-const mediaSources = (Array.isArray(mediaConfig.allowedHosts) ? mediaConfig.allowedHosts : [])
-  .map((host) => String(host).trim())
-  .filter((host) => /^[a-z0-9.-]+(?::\d+)?$/i.test(host))
-  .map((host) => `https://${host}`)
-  .join(" ");
 const articles = allArticles.filter((article) => !article.status || article.status === "published");
 const visibleArticles = articles.slice(0, pageSize);
 const remainingCount = Math.max(articles.length - visibleArticles.length, 0);
@@ -60,11 +56,10 @@ html = html
 
 const css = (await readFile(join(root, "app", "globals.css"), "utf8"))
   .replace(/^@import\s+["']tailwindcss["'];\s*/u, "");
-const articleHtml = (await readFile(join(root, "public", "article.html"), "utf8"))
-  .replace(
-    "</head>",
-    `    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; connect-src 'self'; frame-src 'none'; img-src 'self'${mediaSources ? ` ${mediaSources}` : ""}; media-src 'self'${mediaSources ? ` ${mediaSources}` : ""}; object-src 'none'; script-src 'self'; style-src 'self'" />\n  </head>`,
-  );
+const articleHtml = createStaticArticleHtml(
+  await readFile(join(root, "public", "article.html"), "utf8"),
+  mediaConfig.allowedHosts,
+);
 
 await rm(outputRoot, { recursive: true, force: true });
 await mkdir(outputRoot, { recursive: true });

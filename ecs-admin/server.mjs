@@ -24,6 +24,7 @@ import {
 } from "node:crypto";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { createStaticArticleHtml } from "../lib/static-media-policy.mjs";
 
 const execFileAsync = promisify(execFile);
 const appRoot = dirname(fileURLToPath(import.meta.url));
@@ -540,9 +541,20 @@ async function publishArticles(articles) {
     await runGit(["pull", "--rebase", "origin", "main"]);
     const target = join(repoDir, "docs", "articles.json");
     const mediaConfigTarget = join(repoDir, "docs", "media-config.json");
+    const articlePageTarget = join(repoDir, "docs", "article.html");
+    const articlePageTemplate = join(repoDir, "public", "article.html");
+    const currentMediaConfig = mediaConfig();
     await writeFile(target, `${JSON.stringify(publicArticles, null, 2)}\n`, "utf8");
-    await writeFile(mediaConfigTarget, `${JSON.stringify(mediaConfig(), null, 2)}\n`, "utf8");
-    await runGit(["add", "docs/articles.json", "docs/media-config.json"]);
+    await writeFile(mediaConfigTarget, `${JSON.stringify(currentMediaConfig, null, 2)}\n`, "utf8");
+    await writeFile(
+      articlePageTarget,
+      createStaticArticleHtml(
+        await readFile(articlePageTemplate, "utf8"),
+        currentMediaConfig.allowedHosts,
+      ),
+      "utf8",
+    );
+    await runGit(["add", "docs/articles.json", "docs/media-config.json", "docs/article.html"]);
     const diff = await runGit(["diff", "--cached", "--quiet"]).then(() => false, (error) => {
       if (error.code === 1) return true;
       throw error;

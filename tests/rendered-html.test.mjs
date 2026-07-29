@@ -69,6 +69,12 @@ test("导出可扩展的知返静态博客与独立文章页", async () => {
   assert.match(articleHtml, /content\.css/);
   assert.match(articleHtml, /Content-Security-Policy/);
   assert.match(articleHtml, /frame-src 'none'/);
+  for (const host of mediaConfig.allowedHosts) {
+    assert.match(articleHtml, new RegExp(`connect-src[^;]*https://${host.replaceAll(".", "\\.")}`));
+    assert.match(articleHtml, new RegExp(`img-src[^;]*https://${host.replaceAll(".", "\\.")}`));
+    assert.match(articleHtml, new RegExp(`media-src[^;]*https://${host.replaceAll(".", "\\.")}`));
+  }
+  assert.match(articleHtml, /img-src 'self' blob:/);
   assert.match(articleScript, /new URLSearchParams/);
   assert.match(articleScript, /item\.status === "published"/);
   assert.match(articleScript, /ZhifanContent\.renderContent/);
@@ -82,7 +88,9 @@ test("导出可扩展的知返静态博客与独立文章页", async () => {
   assert.match(contentRenderer, /DOMPurify/);
   assert.match(contentRenderer, /javascript:/);
   assert.match(contentRenderer, /ZhifanContent/);
-  assert.deepEqual(mediaConfig.allowedHosts, []);
+  assert.match(contentRenderer, /credentials:"omit",mode:"cors"/);
+  assert.match(contentRenderer, /URL\.createObjectURL\(/);
+  assert.ok(Array.isArray(mediaConfig.allowedHosts));
   assert.match(articleCss, /\.reader-article\.accent-coral/);
   assert.match(articleCss, /\.reader-article\.accent-sky/);
 });

@@ -56,6 +56,7 @@ marked.setOptions({
 
 const VIDEO_LINE = /^@\[video\]\((https:\/\/[^\s)]+)(?:\s+"([^"\n]{0,160})")?\)\s*$/gm;
 const SAFE_PROTOCOLS = new Set(["https:", "mailto:"]);
+const INLINE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const CODE_LANGUAGE_ALIASES = {
   c: "cpp",
   "c++": "cpp",
@@ -121,11 +122,41 @@ function isSafeMedia(value, allowedHosts) {
   return parsed.protocol === "https:" && allowedHosts.has(parsed.host.toLowerCase());
 }
 
-function mediaError(label) {
+function mediaError(label, message = "地址未通过安全校验，暂时无法显示。") {
   const element = document.createElement("p");
   element.className = "content-media-error";
-  element.textContent = `${label}地址未通过安全校验，暂时无法显示。`;
+  element.textContent = `${label}${message}`;
   return element;
+}
+
+async function loadRemoteImage(image, src) {
+  image.removeAttribute("src");
+  image.classList.add("is-loading");
+  try {
+    const response = await fetch(src, {
+      credentials: "omit",
+      mode: "cors",
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const responseType = (response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+    if (!INLINE_IMAGE_TYPES.has(responseType)) throw new Error("图片类型不受支持");
+    const blob = await response.blob();
+    if (!INLINE_IMAGE_TYPES.has(blob.type.toLowerCase())) throw new Error("图片内容类型不受支持");
+    if (!image.isConnected) return;
+    const objectUrl = URL.createObjectURL(blob);
+    const release = () => URL.revokeObjectURL(objectUrl);
+    image.addEventListener("load", () => {
+      image.classList.remove("is-loading");
+      window.setTimeout(release, 0);
+    }, { once: true });
+    image.addEventListener("error", () => {
+      release();
+      if (image.isConnected) image.replaceWith(mediaError("图片", "加载失败，请稍后再试。"));
+    }, { once: true });
+    image.src = objectUrl;
+  } catch {
+    if (image.isConnected) image.replaceWith(mediaError("图片", "加载失败，请稍后再试。"));
+  }
 }
 
 function decorateLinks(fragment) {
@@ -155,6 +186,8 @@ function decorateImages(fragment, allowedHosts) {
     image.loading = "lazy";
     image.decoding = "async";
     if (!image.alt.trim()) image.alt = "文章图片";
+    const parsed = parseUrl(src);
+    if (parsed && parsed.origin !== window.location.origin) void loadRemoteImage(image, src);
   });
 }
 

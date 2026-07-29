@@ -86,6 +86,18 @@
   box-shadow: 0 16px 45px rgba(35, 52, 47, .1);
 }
 
+.rich-content img.is-loading {
+  min-width: min(100%, 320px);
+  min-height: 120px;
+  background: linear-gradient(100deg, #f1f5ef 25%, #fbfcfa 45%, #f1f5ef 65%);
+  background-size: 220% 100%;
+  animation: content-media-loading 1.4s ease infinite;
+}
+
+@keyframes content-media-loading {
+  to { background-position-x: -220%; }
+}
+
 .rich-content hr {
   width: min(180px, 40%);
   margin: 3em auto;
