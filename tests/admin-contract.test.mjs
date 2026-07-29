@@ -67,6 +67,7 @@ test("管理后台具备持久化、鉴权和完整 CRUD 契约", async () => {
   assert.match(ecsServer, /content-length-range/);
   assert.match(ecsServer, /OSS_ACCESS_KEY_SECRET/);
   assert.match(ecsServer, /OSS_USE_ECS_RAM_ROLE/);
+  assert.match(ecsServer, /OSS_ECS_DISABLE_IMDSV1/);
   assert.match(ecsServer, /X-aliyun-ecs-metadata-token/);
   assert.match(ecsServer, /meta-data\/ram\/security-credentials/);
   assert.doesNotMatch(ecsServer, /ossAccessKeySecret\s*[,}]/);

@@ -91,6 +91,7 @@ test("ECS 后台通过 IMDSv2 获取并缓存 RAM 角色临时凭证", async (co
       OSS_ENDPOINT: "oss-cn-guangzhou.aliyuncs.com",
       OSS_PUBLIC_BASE_URL: "https://zhifan-blog.oss-cn-guangzhou.aliyuncs.com",
       OSS_USE_ECS_RAM_ROLE: "true",
+      OSS_ECS_DISABLE_IMDSV1: "true",
       OSS_ECS_METADATA_BASE_URL: `http://127.0.0.1:${metadataPort}/latest`,
       OSS_ACCESS_KEY_ID: "",
       OSS_ACCESS_KEY_SECRET: "",

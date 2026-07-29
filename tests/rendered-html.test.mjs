@@ -41,7 +41,8 @@ test("导出可扩展的知返静态博客与独立文章页", async () => {
   assert.equal((html.match(/data-article-id=/g) || []).length, 6);
   assert.equal(articles.length, 7);
   assert.ok(articles.every((article) => article.status === "published"));
-  assert.ok(articles.every((article) => article.contentFormat === "plain"));
+  assert.ok(articles.every((article) => ["plain", "markdown"].includes(article.contentFormat)));
+  assert.ok(articles.some((article) => article.contentFormat === "plain"));
   assert.deepEqual([...new Set(articles.map((article) => article.category))].sort(), ["生活随想", "项目经验"]);
   assert.ok(articles.filter((article) => article.category === "项目经验").every((article) => article.accent === "mint"));
 

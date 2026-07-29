@@ -51,6 +51,9 @@ const configuredOssAccessKeySecret = process.env.OSS_ACCESS_KEY_SECRET || "";
 const ossSecurityToken = process.env.OSS_SECURITY_TOKEN || "";
 const ossUseEcsRamRole = /^(?:1|true|yes)$/i.test((process.env.OSS_USE_ECS_RAM_ROLE || "").trim());
 const ossEcsRamRoleName = (process.env.OSS_ECS_RAM_ROLE_NAME || "").trim();
+const ossDisableImdsV1 = /^(?:1|true|yes)$/i.test(
+  (process.env.OSS_ECS_DISABLE_IMDSV1 || "").trim(),
+);
 const ossEcsMetadataBaseUrl = (
   process.env.OSS_ECS_METADATA_BASE_URL || "http://100.100.100.200/latest"
 ).trim().replace(/\/+$/, "");
@@ -344,20 +347,24 @@ async function fetchMetadata(path, options = {}) {
 }
 
 async function fetchEcsRamRoleCredentials() {
-  let token = "";
   try {
-    const tokenResponse = await fetchMetadata("api/token", {
-      method: "PUT",
-      headers: {
-        "X-aliyun-ecs-metadata-token-ttl-seconds": "21600",
-      },
-    });
-    token = (await tokenResponse.text()).trim();
-    if (!token) throw new Error("ECS 元数据令牌为空");
+    let headers = {};
+    try {
+      const tokenResponse = await fetchMetadata("api/token", {
+        method: "PUT",
+        headers: {
+          "X-aliyun-ecs-metadata-token-ttl-seconds": "21600",
+        },
+      });
+      const token = (await tokenResponse.text()).trim();
+      if (!token) throw new Error("ECS 元数据令牌为空");
+      headers = {
+        "X-aliyun-ecs-metadata-token": token,
+      };
+    } catch (error) {
+      if (ossDisableImdsV1) throw error;
+    }
 
-    const headers = {
-      "X-aliyun-ecs-metadata-token": token,
-    };
     let roleName = ossEcsRamRoleName;
     if (!roleName) {
       const roleResponse = await fetchMetadata("meta-data/ram/security-credentials/", { headers });
