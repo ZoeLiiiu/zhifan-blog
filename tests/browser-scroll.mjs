@@ -35,7 +35,7 @@ async function waitFor(url, predicate, timeout = 15000) {
   const started = Date.now();
   while (Date.now() - started < timeout) {
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(1000) });
       if (predicate(response)) return response;
     } catch {
       // 调试端口尚未启动，继续轮询。
@@ -48,8 +48,13 @@ async function waitFor(url, predicate, timeout = 15000) {
 function createCdpClient(socket) {
   let nextId = 0;
   const pending = new Map();
-  const handleMessage = (event) => {
-    const message = JSON.parse(typeof event.data === "string" ? event.data : event.data.toString());
+  const handleMessage = async (event) => {
+    const payload = typeof event.data === "string"
+      ? event.data
+      : event.data instanceof Blob
+        ? await event.data.text()
+        : new TextDecoder().decode(event.data);
+    const message = JSON.parse(payload);
     if (!message.id || !pending.has(message.id)) return;
     const { resolve: resolveMessage, reject: rejectMessage } = pending.get(message.id);
     pending.delete(message.id);
@@ -57,6 +62,10 @@ function createCdpClient(socket) {
     else resolveMessage(message.result);
   };
   socket.addEventListener("message", handleMessage);
+  socket.addEventListener("close", () => {
+    for (const callbacks of pending.values()) callbacks.reject(new Error("Chrome 调试连接已关闭"));
+    pending.clear();
+  });
 
   return {
     send(method, params = {}) {
@@ -163,7 +172,10 @@ try {
   userData = await mkdtemp(join(process.env.TEMP ?? process.env.TMP ?? ".", "zhifan-chrome-"));
   chrome = spawn(chromePath, [
     "--headless=new",
+    "--no-sandbox",
     "--disable-gpu",
+    "--disable-gpu-sandbox",
+    "--use-angle=swiftshader",
     "--disable-extensions",
     "--no-first-run",
     "--no-default-browser-check",
@@ -301,7 +313,7 @@ try {
 } finally {
   if (cdp) {
     try {
-      await cdp.send("Browser.close");
+      await Promise.race([cdp.send("Browser.close"), delay(2000)]);
     } catch {
       // 页面已经退出时无需重复关闭。
     }
@@ -311,6 +323,11 @@ try {
     await Promise.race([once(chrome, "exit"), delay(5000)]);
     if (chrome.exitCode === null) chrome.kill();
   }
-  if (server) await new Promise((resolvePromise) => server.close(() => resolvePromise()));
+  if (server) {
+    await new Promise((resolvePromise) => {
+      server.close(() => resolvePromise());
+      server.closeAllConnections();
+    });
+  }
   if (userData) await rm(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
 }

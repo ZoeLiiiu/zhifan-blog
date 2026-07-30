@@ -14,7 +14,7 @@
     "release:pages": "npm run build && npm run export:static && npm run sync:pages",
     "start": "vinext start",
     "test": "npm run build && npm run export:static && node --test tests/rendered-html.test.mjs tests/admin-contract.test.mjs tests/ecs-admin.test.mjs tests/ecs-ram-role.test.mjs",
-    "test:browser": "node tests/browser-scroll.mjs",
+    "test:browser": "node tests/browser-scroll.mjs && node tests/admin-paste-browser.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern site --ignore-pattern docs --ignore-pattern .next --ignore-pattern public/content-renderer.js --ignore-pattern ecs-admin/public/content-renderer.js",
     "db:generate": "drizzle-kit generate"
   },

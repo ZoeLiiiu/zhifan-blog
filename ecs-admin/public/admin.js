@@ -29,11 +29,20 @@
   const uploadProgress = document.querySelector("[data-upload-progress]");
   const uploadMeter = document.querySelector("[data-upload-meter]");
   const uploadLabel = document.querySelector("[data-upload-label]");
+  const pasteUploadPanel = document.querySelector("[data-paste-upload-panel]");
+  const pasteUploadSummary = document.querySelector("[data-paste-upload-summary]");
+  const pasteUploadList = document.querySelector("[data-paste-upload-list]");
+  const cancelPasteUpload = document.querySelector("[data-cancel-paste-upload]");
   const bodyInput = editorForm.elements.body;
   const formatInput = editorForm.elements.contentFormat;
   const statusLabels = { published: "已发布", draft: "草稿", archived: "已归档" };
   const accentLabels = { mint: "薄荷绿", coral: "珊瑚橙", sky: "天空蓝" };
   const categoryAccents = { 项目经验: "mint", 生活随想: "sky" };
+  const clipboardImageExtensions = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+  };
   let articles = [];
   let mediaItems = [];
   let mediaConfig = { enabled: false, allowedHosts: [] };
@@ -42,6 +51,9 @@
   let previewTimer = 0;
   let uploadRequest = null;
   let uploadBusy = false;
+  let pasteJobs = [];
+  let pasteQueue = Promise.resolve();
+  let activePasteJob = null;
 
   const api = async (url, options = {}) => {
     const response = await fetch(url, {
@@ -224,7 +236,7 @@
     readTime: editorForm.elements.readTime.value,
     title: editorForm.elements.title.value,
     excerpt: editorForm.elements.excerpt.value,
-    body: bodyInput.value,
+    body: pasteJobs.reduce((body, job) => body.replaceAll(job.placeholder, ""), bodyInput.value),
     contentFormat: formatInput.value,
     accent: editorForm.elements.accent.value,
     status: forcedStatus || editorForm.elements.status.value,
@@ -300,7 +312,8 @@
   const safeMarkdownText = (value) => String(value || "").replaceAll("\n", " ").replaceAll('"', "'").trim();
 
   const insertMedia = (record, details = {}) => {
-    const caption = safeMarkdownText(details.caption || record.originalName);
+    const hasCaption = Object.prototype.hasOwnProperty.call(details, "caption");
+    const caption = safeMarkdownText(hasCaption ? details.caption : record.originalName);
     const syntax = record.kind === "image"
       ? `![${safeMarkdownText(details.alt) || "文章图片"}](${record.url}${caption ? ` "${caption}"` : ""})`
       : `@[video](${record.url}${caption ? ` "${caption}"` : ""})`;
@@ -385,34 +398,84 @@
     mediaDialog.showModal();
   };
 
-  const uploadToOss = (uploadUrl, fields, file) => new Promise((resolve, reject) => {
+  const uploadToOss = (uploadUrl, fields, file, options = {}) => new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
-    uploadRequest = request;
+    const signal = options.signal;
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener("abort", abortRequest);
+      options.onRequest?.(null);
+      callback(value);
+    };
+    const abortRequest = () => request.abort();
+    options.onRequest?.(request);
     request.open("POST", uploadUrl);
     request.upload.addEventListener("progress", (event) => {
       if (!event.lengthComputable) return;
       const value = Math.round((event.loaded / event.total) * 100);
-      uploadMeter.value = value;
-      uploadLabel.textContent = `正在上传… ${value}%`;
+      options.onProgress?.(value);
     });
     request.addEventListener("load", () => {
-      uploadRequest = null;
-      if (request.status >= 200 && request.status < 300) resolve();
-      else reject(new Error(`OSS 上传失败（${request.status || "网络错误"}）`));
+      if (request.status >= 200 && request.status < 300) finish(resolve);
+      else finish(reject, new Error(`OSS 上传失败（${request.status || "网络错误"}）`));
     });
     request.addEventListener("error", () => {
-      uploadRequest = null;
-      reject(new Error("OSS 上传失败，请检查网络和跨域配置"));
+      finish(reject, new Error("OSS 上传失败，请检查网络和跨域配置"));
     });
     request.addEventListener("abort", () => {
-      uploadRequest = null;
-      reject(new Error("上传已取消"));
+      finish(reject, new Error("上传已取消"));
     });
     const formData = new FormData();
     Object.entries(fields).forEach(([name, value]) => formData.append(name, value));
     formData.append("file", file);
+    if (signal?.aborted) {
+      finish(reject, new Error("上传已取消"));
+      return;
+    }
+    signal?.addEventListener("abort", abortRequest, { once: true });
     request.send(formData);
   });
+
+  const cleanupPendingMedia = async (record) => {
+    if (!record?.id) return;
+    await api(`/api/media/${encodeURIComponent(record.id)}`, { method: "DELETE" }).catch(() => {});
+  };
+
+  const uploadFile = async (file, kind, options = {}) => {
+    let pendingRecord = null;
+    try {
+      options.onPhase?.("policy");
+      const policy = await api("/api/media/policy", {
+        method: "POST",
+        body: JSON.stringify({
+          kind,
+          name: file.name,
+          mime: file.type,
+          size: file.size,
+        }),
+        signal: options.signal,
+      });
+      pendingRecord = policy.media;
+      options.onPhase?.("upload");
+      await uploadToOss(policy.uploadUrl, policy.fields, file, options);
+      options.onPhase?.("verify");
+      const completed = await api("/api/media/complete", {
+        method: "POST",
+        body: JSON.stringify({ id: policy.media.id, key: policy.media.key }),
+        signal: options.signal,
+      });
+      mediaConfig = completed.config || mediaConfig;
+      mediaItems = [completed.media, ...mediaItems.filter((item) => item.id !== completed.media.id)];
+      renderMediaList();
+      return completed.media;
+    } catch (error) {
+      await cleanupPendingMedia(pendingRecord);
+      if (options.signal?.aborted || error?.name === "AbortError") throw new Error("上传已取消");
+      throw error;
+    }
+  };
 
   const uploadMedia = async () => {
     const file = mediaForm.elements.file.files?.[0];
@@ -421,35 +484,237 @@
     if (kind === "image" && !mediaForm.elements.alt.value.trim()) {
       throw new Error("请填写图片替代文字");
     }
-    const policy = await api("/api/media/policy", {
-      method: "POST",
-      body: JSON.stringify({
-        kind,
-        name: file.name,
-        mime: file.type,
-        size: file.size,
-      }),
-    });
     uploadProgress.hidden = false;
     uploadMeter.value = 0;
-    uploadLabel.textContent = "正在上传… 0%";
-    await uploadToOss(policy.uploadUrl, policy.fields, file);
-    uploadLabel.textContent = "正在校验文件…";
-    const completed = await api("/api/media/complete", {
-      method: "POST",
-      body: JSON.stringify({ id: policy.media.id, key: policy.media.key }),
+    uploadLabel.textContent = "正在申请上传…";
+    const completed = await uploadFile(file, kind, {
+      onRequest: (request) => { uploadRequest = request; },
+      onProgress: (value) => {
+        uploadMeter.value = value;
+        uploadLabel.textContent = `正在上传… ${value}%`;
+      },
+      onPhase: (phase) => {
+        if (phase === "verify") uploadLabel.textContent = "正在校验文件…";
+      },
     });
-    mediaConfig = completed.config || mediaConfig;
-    mediaItems = [completed.media, ...mediaItems.filter((item) => item.id !== completed.media.id)];
-    insertMedia(completed.media, {
+    insertMedia(completed, {
       alt: mediaForm.elements.alt.value,
       caption: mediaForm.elements.caption.value,
     });
-    renderMediaList();
     uploadMeter.value = 100;
     uploadLabel.textContent = "上传完成";
     mediaMessage.textContent = "文件已上传并插入正文";
     mediaForm.elements.file.value = "";
+  };
+
+  const clipboardFilename = (file, index, timestamp) => {
+    if (file.name?.trim()) return file.name;
+    const date = [
+      timestamp.getFullYear(),
+      String(timestamp.getMonth() + 1).padStart(2, "0"),
+      String(timestamp.getDate()).padStart(2, "0"),
+      "-",
+      String(timestamp.getHours()).padStart(2, "0"),
+      String(timestamp.getMinutes()).padStart(2, "0"),
+      String(timestamp.getSeconds()).padStart(2, "0"),
+    ].join("");
+    return `clipboard-${date}-${index + 1}.${clipboardImageExtensions[file.type]}`;
+  };
+
+  const namedClipboardFile = (file, index, timestamp) => {
+    const name = clipboardFilename(file, index, timestamp);
+    if (name === file.name) return file;
+    return new File([file], name, { type: file.type, lastModified: file.lastModified || timestamp.getTime() });
+  };
+
+  const createUploadPlaceholder = () => {
+    const id = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const encodedId = [...id.replace(/[^0-9a-f]/gi, "")]
+      .map((digit) => String.fromCodePoint(0xfe00 + Number.parseInt(digit, 16)))
+      .join("");
+    return `\u2063${encodedId}\u2063`;
+  };
+
+  const dispatchBodyInput = () => bodyInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+  const showPasteNotice = (message) => {
+    pasteUploadPanel.hidden = false;
+    pasteUploadPanel.classList.add("is-warning");
+    pasteUploadSummary.textContent = message;
+  };
+
+  const pasteStatusText = (job) => {
+    if (job.status === "queued") return "等待上传";
+    if (job.status === "uploading") return job.phase === "verify" ? "正在校验" : job.phase === "policy" ? "正在申请上传" : "正在上传";
+    if (job.status === "inserted") return "已上传并插入正文";
+    if (job.status === "ready") return "已上传，原占位符被删除";
+    if (job.status === "cancelled") return "上传已取消，可重试";
+    return job.error || "上传失败";
+  };
+
+  const insertReadyPasteJob = (job) => {
+    if (!job.record) return;
+    insertMedia(job.record, { alt: job.alt, caption: "" });
+    job.status = "inserted";
+    renderPasteJobs();
+  };
+
+  const renderPasteJobs = () => {
+    if (!pasteJobs.length) return;
+    pasteUploadPanel.hidden = false;
+    pasteUploadPanel.classList.remove("is-warning");
+    const completed = pasteJobs.filter((job) => job.status === "inserted" || job.status === "ready").length;
+    pasteUploadSummary.textContent = activePasteJob
+      ? `正在处理 ${pasteJobs.indexOf(activePasteJob) + 1}/${pasteJobs.length}：${activePasteJob.file.name}`
+      : `本次共 ${pasteJobs.length} 张，已完成 ${completed} 张`;
+    cancelPasteUpload.hidden = !activePasteJob;
+    pasteUploadList.replaceChildren();
+    pasteJobs.forEach((job) => {
+      const item = document.createElement("article");
+      item.className = `paste-upload-item status-${job.status}`;
+      item.dataset.pasteJob = job.id;
+      const fileCopy = document.createElement("span");
+      fileCopy.className = "paste-upload-file";
+      const name = document.createElement("strong");
+      name.textContent = job.file.name;
+      const status = document.createElement("small");
+      status.textContent = pasteStatusText(job);
+      fileCopy.append(name, status);
+      const meterWrap = document.createElement("span");
+      meterWrap.className = "paste-upload-meter";
+      const meter = document.createElement("progress");
+      meter.max = 100;
+      meter.value = job.progress;
+      const percentage = document.createElement("span");
+      percentage.textContent = `${job.progress}%`;
+      meterWrap.append(meter, percentage);
+      const actions = document.createElement("span");
+      actions.className = "paste-upload-actions";
+      if ((job.status === "failed" || job.status === "cancelled") && job.retryable !== false) {
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.className = "retry";
+        retry.textContent = "重试";
+        retry.addEventListener("click", () => queuePasteJob(job));
+        actions.append(retry);
+      }
+      if (job.status === "ready") {
+        const insert = document.createElement("button");
+        insert.type = "button";
+        insert.textContent = "插入正文";
+        insert.addEventListener("click", () => insertReadyPasteJob(job));
+        actions.append(insert);
+      }
+      item.append(fileCopy, meterWrap, actions);
+      pasteUploadList.append(item);
+    });
+  };
+
+  const replacePastePlaceholder = (job, record) => {
+    const index = bodyInput.value.indexOf(job.placeholder);
+    if (index < 0) return false;
+    const syntax = `![${safeMarkdownText(job.alt)}](${record.url})`;
+    bodyInput.setRangeText(syntax, index, index + job.placeholder.length, "preserve");
+    dispatchBodyInput();
+    return true;
+  };
+
+  const processPasteJob = async (job) => {
+    if (job.status !== "queued") return;
+    activePasteJob = job;
+    job.status = "uploading";
+    job.phase = "policy";
+    job.progress = 0;
+    job.error = "";
+    job.controller = new AbortController();
+    renderPasteJobs();
+    try {
+      const record = await uploadFile(job.file, "image", {
+        signal: job.controller.signal,
+        onRequest: (request) => { job.request = request; },
+        onProgress: (value) => {
+          job.progress = value;
+          renderPasteJobs();
+        },
+        onPhase: (phase) => {
+          job.phase = phase;
+          renderPasteJobs();
+        },
+      });
+      job.record = record;
+      job.progress = 100;
+      job.status = replacePastePlaceholder(job, record) ? "inserted" : "ready";
+    } catch (error) {
+      job.status = job.controller.signal.aborted ? "cancelled" : "failed";
+      job.error = error.message || "上传失败，请重试";
+    } finally {
+      job.controller = null;
+      job.request = null;
+      activePasteJob = null;
+      renderPasteJobs();
+    }
+  };
+
+  const queuePasteJob = (job) => {
+    if (job.status === "queued" || job.status === "uploading") return;
+    job.status = "queued";
+    job.progress = 0;
+    job.error = "";
+    renderPasteJobs();
+    pasteQueue = pasteQueue.then(() => processPasteJob(job));
+  };
+
+  const insertPastePlaceholders = (jobs) => {
+    const start = bodyInput.selectionStart;
+    const end = bodyInput.selectionEnd;
+    const before = bodyInput.value.slice(0, start);
+    const after = bodyInput.value.slice(end);
+    const prefix = before && !before.endsWith("\n") ? "\n\n" : "";
+    const suffix = after && !after.startsWith("\n") ? "\n\n" : "";
+    bodyInput.setRangeText(`${prefix}${jobs.map((job) => job.placeholder).join("\n\n")}${suffix}`, start, end, "end");
+    dispatchBodyInput();
+  };
+
+  const handleBodyPaste = (event) => {
+    const clipboardFiles = [...(event.clipboardData?.items || [])]
+      .filter((item) => item.kind === "file" && clipboardImageExtensions[item.type])
+      .map((item) => item.getAsFile())
+      .filter(Boolean);
+    if (!clipboardFiles.length) return;
+    event.preventDefault();
+    if (formatInput.value !== "markdown") {
+      showPasteNotice("旧纯文本文章暂不支持粘贴图片，请先点击“升级为多格式文章”。");
+      editorMessage.textContent = "请先升级为多格式文章，再粘贴图片。";
+      return;
+    }
+    if (!mediaConfig.enabled) {
+      showPasteNotice("OSS 尚未配置，暂时无法上传粘贴的图片。");
+      return;
+    }
+    const timestamp = new Date();
+    const maxBytes = Number(mediaConfig.imageMaxBytes || 10 * 1024 * 1024);
+    const batch = clipboardFiles.map((file, index) => {
+      const namedFile = namedClipboardFile(file, index, timestamp);
+      return {
+        id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${index}-${Math.random()}`,
+        file: namedFile,
+        alt: clipboardFiles.length === 1 ? "粘贴图片" : `粘贴图片 ${index + 1}`,
+        placeholder: createUploadPlaceholder(),
+        status: namedFile.size > maxBytes ? "failed" : "idle",
+        progress: 0,
+        error: namedFile.size > maxBytes ? "图片超过 10 MiB，未上传" : "",
+        retryable: namedFile.size <= maxBytes,
+      };
+    });
+    pasteJobs = [...pasteJobs, ...batch];
+    insertPastePlaceholders(batch);
+    const rejectedPlaceholders = batch.filter((job) => job.retryable === false);
+    if (rejectedPlaceholders.length) {
+      bodyInput.value = rejectedPlaceholders.reduce((body, job) => body.replace(job.placeholder, ""), bodyInput.value);
+      dispatchBodyInput();
+    }
+    batch.filter((job) => job.status === "idle").forEach(queuePasteJob);
+    renderPasteJobs();
   };
 
   const removeMedia = async (record) => {
@@ -488,6 +753,8 @@
     void saveArticle();
   });
   bodyInput.addEventListener("input", schedulePreview);
+  bodyInput.addEventListener("paste", handleBodyPaste);
+  cancelPasteUpload.addEventListener("click", () => activePasteJob?.controller?.abort());
   document.querySelector("[data-publish]").addEventListener("click", () => void saveArticle("published"));
   document.querySelector("[data-new-article]").addEventListener("click", resetEditor);
   document.querySelector("[data-upgrade-format]").addEventListener("click", () => {
