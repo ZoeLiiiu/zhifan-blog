@@ -28,7 +28,7 @@
       <section class="hero section-shell" id="top">
         <div class="hero-copy">
           <p class="eyebrow"><span></span> 一个慢慢写下来的角落</p>
-          <h1>知道自己<br /><em>要回到哪里。</em></h1>
+          <h1>来煎<em>人寿</em></h1>
           <p class="hero-lede">这里是知返，记录工作里的方法、项目里的回声，以及日常生活中那些值得被留住的小事。</p>
           <div class="hero-actions">
             <a class="button button-primary" href="#latest">从最近一篇开始 <span aria-hidden="true">↓</span></a>
@@ -51,7 +51,7 @@
       </section>
 
       <section class="signal-bar section-shell" aria-label="知返内容概览">
-        <div><strong data-article-total>07</strong><span>篇文章</span></div>
+        <div><strong data-article-total>04</strong><span>篇文章</span></div>
         <div><strong>02</strong><span>个长期栏目</span></div>
         <div><strong>01</strong><span>个持续更新的人</span></div>
         <p>写给正在路上的你，也写给未来的我。</p>
@@ -66,6 +66,22 @@
           <p class="section-intro">按时间更新，也可以按分类慢慢浏览。</p>
         </div>
 
+        <div class="article-search" role="search" aria-label="检索文章" data-article-search-shell>
+          <label class="search-field">
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input
+              type="search"
+              placeholder="检索标题、摘要或正文"
+              aria-label="检索文章标题、摘要或正文"
+              autocomplete="off"
+              data-article-search
+              disabled
+            />
+            <button class="search-clear" type="button" data-search-clear hidden>清空</button>
+          </label>
+          <output class="search-status" data-search-status aria-live="polite">共 {{ARTICLE_COUNT}} 篇文章</output>
+        </div>
+
         <div class="filter-row" aria-label="文章分类">
           <button class="filter-pill selected" type="button" data-filter="全部" aria-pressed="true">全部</button>
           <button class="filter-pill" type="button" data-filter="项目经验" aria-pressed="false">项目经验</button>
@@ -73,29 +89,11 @@
         </div>
 
         <div class="article-grid">
-          <article class="article-card card-sky featured" data-article-id="article-fca17142-3039-49dc-848c-526db635fb19" data-article-category="生活随想" data-article-accent="sky">
-  <div class="card-topline"><span class="category-dot"><i></i></span><span>生活随想</span><span class="card-date">2026.07.29</span></div>
-  <h3>测试4</h3>
-  <p>这是一篇测试文章</p>
-  <div class="card-footer"><span>5 分钟</span><a class="read-link" href="./article.html?id=article-fca17142-3039-49dc-848c-526db635fb19" data-read-article="article-fca17142-3039-49dc-848c-526db635fb19" aria-label="阅读：测试4">阅读全文 <span aria-hidden="true">→</span></a></div>
-</article>
-<article class="article-card card-mint" data-article-id="article-38d59afb-ff44-45fe-b39c-d45f985da204" data-article-category="项目经验" data-article-accent="mint">
-  <div class="card-topline"><span class="category-dot"><i></i></span><span>项目经验</span><span class="card-date">2026.07.28</span></div>
-  <h3>测试3</h3>
-  <p>测试3</p>
-  <div class="card-footer"><span>5 分钟</span><a class="read-link" href="./article.html?id=article-38d59afb-ff44-45fe-b39c-d45f985da204" data-read-article="article-38d59afb-ff44-45fe-b39c-d45f985da204" aria-label="阅读：测试3">阅读全文 <span aria-hidden="true">→</span></a></div>
-</article>
-<article class="article-card card-mint" data-article-id="article-9bc2c65c-6814-4e67-a168-42c903f2b15a" data-article-category="项目经验" data-article-accent="mint">
-  <div class="card-topline"><span class="category-dot"><i></i></span><span>项目经验</span><span class="card-date">2026.07.28</span></div>
-  <h3>测试2</h3>
-  <p>测试2</p>
-  <div class="card-footer"><span>5 分钟</span><a class="read-link" href="./article.html?id=article-9bc2c65c-6814-4e67-a168-42c903f2b15a" data-read-article="article-9bc2c65c-6814-4e67-a168-42c903f2b15a" aria-label="阅读：测试2">阅读全文 <span aria-hidden="true">→</span></a></div>
-</article>
-<article class="article-card card-sky" data-article-id="article-5a51661e-638a-431e-b83e-b1c69e0e4c7a" data-article-category="生活随想" data-article-accent="sky">
-  <div class="card-topline"><span class="category-dot"><i></i></span><span>生活随想</span><span class="card-date">2026.06.28</span></div>
-  <h3>测试</h3>
-  <p>来煎人寿</p>
-  <div class="card-footer"><span>5 分钟</span><a class="read-link" href="./article.html?id=article-5a51661e-638a-431e-b83e-b1c69e0e4c7a" data-read-article="article-5a51661e-638a-431e-b83e-b1c69e0e4c7a" aria-label="阅读：测试">阅读全文 <span aria-hidden="true">→</span></a></div>
+          <article class="article-card card-mint featured" data-article-id="article-c1f5669a-c137-4cff-89b8-92cb2ad7c52c" data-article-category="项目经验" data-article-accent="mint">
+  <div class="card-topline"><span class="category-dot"><i></i></span><span>项目经验</span><span class="card-date">2026.07.30</span></div>
+  <h3>销售经营报表（Power Bi）</h3>
+  <p>当时痛点：数据分散在多个系统，当时数仓尚未搭建，情况数据建设薄弱，数据治理混乱，数据清洗过程较为痛苦。</p>
+  <div class="card-footer"><span>15 分钟</span><a class="read-link" href="./article.html?id=article-c1f5669a-c137-4cff-89b8-92cb2ad7c52c" data-read-article="article-c1f5669a-c137-4cff-89b8-92cb2ad7c52c" aria-label="阅读：销售经营报表（Power Bi）">阅读全文 <span aria-hidden="true">→</span></a></div>
 </article>
 <article class="article-card card-mint" data-article-id="slow-work" data-article-category="项目经验" data-article-accent="mint">
   <div class="card-topline"><span class="category-dot"><i></i></span><span>项目经验</span><span class="card-date">2026.07.12</span></div>
@@ -109,11 +107,17 @@
   <p>复盘不是寻找谁做错了，而是找出系统怎样才能更温柔地工作。</p>
   <div class="card-footer"><span>8 分钟</span><a class="read-link" href="./article.html?id=small-launch" data-read-article="small-launch" aria-label="阅读：一个小功能上线后，我学会了先问为什么">阅读全文 <span aria-hidden="true">→</span></a></div>
 </article>
+<article class="article-card card-sky" data-article-id="window-light" data-article-category="生活随想" data-article-accent="sky">
+  <div class="card-topline"><span class="category-dot"><i></i></span><span>生活随想</span><span class="card-date">2026.06.05</span></div>
+  <h3>给日子留一点没有安排的时间</h3>
+  <p>当生活不再只剩下待办事项，心里才会长出新的方向。</p>
+  <div class="card-footer"><span>4 分钟</span><a class="read-link" href="./article.html?id=window-light" data-read-article="window-light" aria-label="阅读：给日子留一点没有安排的时间">阅读全文 <span aria-hidden="true">→</span></a></div>
+</article>
         </div>
         <p class="article-empty" data-article-empty hidden>这个分类还没有文章，先去别处看看吧。</p>
-        <div class="load-more-row" data-load-more-row >
+        <div class="load-more-row" data-load-more-row hidden>
           <button class="load-more" type="button" data-load-more>
-            加载更多 <span data-load-more-count>还有 1 篇</span>
+            加载更多 <span data-load-more-count>还有 0 篇</span>
           </button>
         </div>
       </section>

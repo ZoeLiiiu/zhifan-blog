@@ -89,6 +89,7 @@ test("ECS 私有后台支持登录、文章 CRUD 和持久化", async (context) 
   const initial = await fetch(`${baseUrl}/api/articles`, { headers: { Cookie: cookie } }).then((response) => response.json());
   assert.equal(initial.articles.length, 3);
   assert.ok(initial.articles.slice(0, 2).every((article) => article.category === "项目经验" && article.accent === "mint"));
+  assert.ok(initial.articles.filter((article) => article.category === "生活随想").every((article) => article.accent === "sky"));
   assert.ok(initial.articles.every((article) => article.contentFormat === "plain"));
 
   const mediaLibrary = await fetch(`${baseUrl}/api/media`, { headers: { Cookie: cookie } }).then((response) => response.json());
@@ -122,6 +123,25 @@ test("ECS 私有后台支持登录、文章 CRUD 和持久化", async (context) 
   assert.equal(created.article.status, "draft");
   assert.equal(created.article.contentFormat, "markdown");
 
+  const lifeCreate = await fetch(`${baseUrl}/api/articles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookie },
+    body: JSON.stringify({
+      category: "生活随想",
+      date: "2026.07.27",
+      readTime: "3 分钟",
+      title: "生活随想配色测试",
+      excerpt: "",
+      body: "",
+      contentFormat: "markdown",
+      accent: "coral",
+      status: "draft",
+    }),
+  });
+  assert.equal(lifeCreate.status, 201);
+  const lifeCreated = await lifeCreate.json();
+  assert.equal(lifeCreated.article.accent, "sky");
+
   const update = await fetch(`${baseUrl}/api/articles/${created.article.id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Cookie: cookie },
@@ -144,6 +164,12 @@ test("ECS 私有后台支持登录、文章 CRUD 和持久化", async (context) 
     headers: { Cookie: cookie },
   });
   assert.equal(remove.status, 200);
+
+  const removeLife = await fetch(`${baseUrl}/api/articles/${lifeCreated.article.id}`, {
+    method: "DELETE",
+    headers: { Cookie: cookie },
+  });
+  assert.equal(removeLife.status, 200);
 
   const persisted = JSON.parse(await readFile(dataFile, "utf8"));
   assert.equal(persisted.length, 3);

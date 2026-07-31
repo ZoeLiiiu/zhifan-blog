@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   categories,
   seedArticles,
@@ -9,11 +9,170 @@ import {
 } from "@/lib/articles";
 
 const pageSize = 6;
+const searchDelay = 120;
+const snippetLength = 118;
+const snippetContext = 38;
+
+type HighlightPart = {
+  highlighted: boolean;
+  text: string;
+};
+
+type ArticleSearchResult = {
+  article: Article;
+  bodyMatch: boolean;
+  preview: string;
+};
+
+const normalizeDisplayText = (value: unknown) =>
+  String(value ?? "")
+    .normalize("NFKC")
+    .replace(/\s+/gu, " ")
+    .trim();
+
+const normalizeSearchText = (value: unknown) =>
+  normalizeDisplayText(value).toLocaleLowerCase("zh-CN");
+
+const protectMarkdownCode = (value: string) => {
+  const codeSegments: string[] = [];
+  const protect = (code: string) => {
+    const index = codeSegments.push(code) - 1;
+    return `\uE000${index}\uE001`;
+  };
+  const text = value
+    .normalize("NFKC")
+    .replace(
+      /^[ \t]*(`{3,}|~{3,})[^\r\n]*\r?\n([\s\S]*?)^[ \t]*\1[ \t]*$/gmu,
+      (_, _fence: string, code: string) => protect(code),
+    )
+    .replace(/(`+)([^`\r\n]*?)\1/gu, (_, _ticks: string, code: string) => protect(code));
+
+  return {
+    restore: (prepared: string) => prepared.replace(
+      /\uE000(\d+)\uE001/gu,
+      (_, index: string) => codeSegments[Number(index)] ?? "",
+    ),
+    text,
+  };
+};
+
+const markdownToSearchText = (body: string, contentFormat: Article["contentFormat"]) => {
+  if (contentFormat !== "markdown") return normalizeDisplayText(body);
+
+  const protectedCode = protectMarkdownCode(body);
+  const prepared = protectedCode.text
+    .replace(
+      /@\[video\]\(\s*\S+(?:\s+["']([^"']*)["'])?\s*\)/giu,
+      (_, title: string | undefined) => title || "视频",
+    )
+    .replace(/!\[([^\]]*)\]\([^)]*\)/gu, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/gu, "$1")
+    .replace(/^[ \t]*(?:```+|~~~+)[^\r\n]*$/gmu, " ")
+    .replace(/^[ \t]{0,3}(?:#{1,6}|>|[-+*]|\d+[.)])[ \t]+/gmu, "")
+    .replace(/^[ \t]*\|?(?:[ \t]*:?-{3,}:?[ \t]*\|)+[ \t]*$/gmu, " ")
+    .replace(/^[ \t]{0,3}(?:[-*_][ \t]*){3,}$/gmu, " ")
+    .replace(/\\([\\`*_[\]{}()#+\-.!|>])/gu, "$1")
+    .replace(/[*_~]+/gu, "")
+    .replace(/\|/gu, " ");
+
+  return normalizeDisplayText(protectedCode.restore(prepared));
+};
+
+const splitSearchTerms = (query: string) =>
+  normalizeSearchText(query).split(" ").filter(Boolean);
+
+const highlightedParts = (value: string, terms: string[]): HighlightPart[] => {
+  const text = normalizeDisplayText(value);
+  if (!text || !terms.length) return [{ highlighted: false, text }];
+
+  const folded = text.toLocaleLowerCase("zh-CN");
+  const parts: HighlightPart[] = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    let matchStart = -1;
+    let matchLength = 0;
+
+    for (const term of terms) {
+      const index = folded.indexOf(term, cursor);
+      if (
+        index >= 0
+        && (matchStart < 0 || index < matchStart || (index === matchStart && term.length > matchLength))
+      ) {
+        matchStart = index;
+        matchLength = term.length;
+      }
+    }
+
+    if (matchStart < 0) break;
+    if (matchStart > cursor) {
+      parts.push({ highlighted: false, text: text.slice(cursor, matchStart) });
+    }
+    parts.push({
+      highlighted: true,
+      text: text.slice(matchStart, matchStart + matchLength),
+    });
+    cursor = matchStart + matchLength;
+  }
+
+  if (cursor < text.length) {
+    parts.push({ highlighted: false, text: text.slice(cursor) });
+  }
+
+  return parts.length ? parts : [{ highlighted: false, text }];
+};
+
+const HighlightedText = ({ text, terms }: { text: string; terms: string[] }): ReactNode => (
+  <>
+    {highlightedParts(text, terms).map((part, index) => (
+      part.highlighted
+        ? <mark key={`${index}-${part.text}`}>{part.text}</mark>
+        : <span key={`${index}-${part.text}`}>{part.text}</span>
+    ))}
+  </>
+);
+
+const bodySnippet = (bodyText: string, terms: string[]) => {
+  const folded = normalizeSearchText(bodyText);
+  const indexes = terms
+    .map((term) => folded.indexOf(term))
+    .filter((index) => index >= 0);
+  const firstMatch = indexes.length ? Math.min(...indexes) : 0;
+  const start = Math.max(firstMatch - snippetContext, 0);
+  const end = Math.min(start + snippetLength, bodyText.length);
+  return `${start > 0 ? "…" : ""}${bodyText.slice(start, end).trim()}${end < bodyText.length ? "…" : ""}`;
+};
+
+const searchArticle = (article: Article, terms: string[]): ArticleSearchResult | null => {
+  const title = normalizeDisplayText(article.title);
+  const excerpt = normalizeDisplayText(article.excerpt);
+  const bodyText = markdownToSearchText(article.body, article.contentFormat);
+  const titleIndex = normalizeSearchText(title);
+  const excerptIndex = normalizeSearchText(excerpt);
+  const bodyIndex = normalizeSearchText(bodyText);
+  const combinedIndex = `${titleIndex} ${excerptIndex} ${bodyIndex}`;
+
+  if (!terms.every((term) => combinedIndex.includes(term))) return null;
+
+  const visibleIndex = `${titleIndex} ${excerptIndex}`;
+  const bodyOnlyTerms = terms.filter(
+    (term) => !visibleIndex.includes(term) && bodyIndex.includes(term),
+  );
+  const bodyMatch = bodyOnlyTerms.length > 0;
+
+  return {
+    article,
+    bodyMatch,
+    preview: bodyMatch ? bodySnippet(bodyText, bodyOnlyTerms) : excerpt,
+  };
+};
 
 export default function Home() {
   const [articles, setArticles] = useState<Article[]>(seedArticles);
   const [activeCategory, setActiveCategory] = useState<Category>("全部");
   const [visibleCount, setVisibleCount] = useState(pageSize);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -31,18 +190,42 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setSearchQuery(searchInput);
+      setVisibleCount(pageSize);
+    }, searchDelay);
+    return () => window.clearTimeout(timeout);
+  }, [searchInput]);
+
+  const publishedArticles = useMemo(
+    () => articles.filter((article) => article.status === "published"),
+    [articles],
+  );
+  const searchTerms = useMemo(() => splitSearchTerms(searchQuery), [searchQuery]);
   const filteredArticles = useMemo(
-    () =>
-      activeCategory === "全部"
-        ? articles
-        : articles.filter((article) => article.category === activeCategory),
-    [activeCategory, articles],
+    () => {
+      const categoryArticles = activeCategory === "全部"
+        ? publishedArticles
+        : publishedArticles.filter((article) => article.category === activeCategory);
+
+      return categoryArticles
+        .map((article) => searchArticle(article, searchTerms))
+        .filter((result): result is ArticleSearchResult => Boolean(result));
+    },
+    [activeCategory, publishedArticles, searchTerms],
   );
   const visibleArticles = filteredArticles.slice(0, visibleCount);
   const remainingCount = Math.max(filteredArticles.length - visibleCount, 0);
 
   const selectCategory = (category: Category) => {
     setActiveCategory(category);
+    setVisibleCount(pageSize);
+  };
+
+  const clearSearch = () => {
+    setSearchInput("");
+    setSearchQuery("");
     setVisibleCount(pageSize);
   };
 
@@ -70,10 +253,7 @@ export default function Home() {
       <section className="hero section-shell" id="top">
         <div className="hero-copy">
           <p className="eyebrow"><span /> 一个慢慢写下来的角落</p>
-          <h1>
-            知道自己<br />
-            <em>要回到哪里。</em>
-          </h1>
+          <h1>来煎<em>人寿</em></h1>
           <p className="hero-lede">
             这里是知返，记录工作里的方法、项目里的回声，
             以及日常生活中那些值得被留住的小事。
@@ -100,7 +280,7 @@ export default function Home() {
       </section>
 
       <section className="signal-bar section-shell" aria-label="知返内容概览">
-        <div><strong>{String(articles.length).padStart(2, "0")}</strong><span>篇文章</span></div>
+        <div><strong>{String(publishedArticles.length).padStart(2, "0")}</strong><span>篇文章</span></div>
         <div><strong>{String(categories.length).padStart(2, "0")}</strong><span>个长期栏目</span></div>
         <div><strong>01</strong><span>个持续更新的人</span></div>
         <p>写给正在路上的你，也写给未来的我。</p>
@@ -113,6 +293,39 @@ export default function Home() {
             <h2>从想读的方向，<br /><em>找到一篇文章。</em></h2>
           </div>
           <p className="section-intro">按时间更新，也可以按分类慢慢浏览。</p>
+        </div>
+
+        <div className="article-search" data-article-search-shell>
+          <label className="search-field">
+            <span className="sr-only">检索文章</span>
+            <span className="search-icon" aria-hidden="true">⌕</span>
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") clearSearch();
+              }}
+              placeholder="检索标题、摘要或正文"
+              autoComplete="off"
+              data-article-search
+            />
+            {searchInput && (
+              <button
+                className="search-clear"
+                type="button"
+                onClick={clearSearch}
+                data-search-clear
+              >
+                清空
+              </button>
+            )}
+          </label>
+          <output className="search-status" aria-live="polite" data-search-status>
+            {searchTerms.length
+              ? `找到 ${filteredArticles.length} 篇文章`
+              : `共 ${filteredArticles.length} 篇文章`}
+          </output>
         </div>
 
         <div className="filter-row" aria-label="文章分类">
@@ -131,7 +344,7 @@ export default function Home() {
         </div>
 
         <div className="article-grid">
-          {visibleArticles.map((article, index) => (
+          {visibleArticles.map(({ article, bodyMatch, preview }, index) => (
             <article
               className={`article-card card-${article.accent} ${index === 0 ? "featured" : ""}`}
               key={article.id}
@@ -145,8 +358,13 @@ export default function Home() {
                 <span>{article.category}</span>
                 <span className="card-date">{article.date}</span>
               </div>
-              <h3>{article.title}</h3>
-              <p>{article.excerpt}</p>
+              <h3><HighlightedText text={article.title} terms={searchTerms} /></h3>
+              <p
+                className={bodyMatch ? "search-snippet" : undefined}
+                data-body-match={bodyMatch ? "true" : undefined}
+              >
+                <HighlightedText text={preview} terms={searchTerms} />
+              </p>
               <div className="card-footer">
                 <span>{article.readTime}</span>
                 <a
@@ -163,7 +381,11 @@ export default function Home() {
         </div>
 
         {!filteredArticles.length && (
-          <p className="article-empty" data-article-empty>这个分类还没有文章，先去别处看看吧。</p>
+          <p className="article-empty" data-article-empty>
+            {searchTerms.length
+              ? `没有找到同时包含“${normalizeDisplayText(searchQuery)}”的文章，换个关键词试试吧。`
+              : "这个分类还没有文章，先去别处看看吧。"}
+          </p>
         )}
 
         <div className="load-more-row" hidden={!remainingCount}>

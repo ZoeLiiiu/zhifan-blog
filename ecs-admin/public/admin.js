@@ -10,8 +10,6 @@
   const editorTitle = document.querySelector("[data-editor-title]");
   const editorMessage = document.querySelector("[data-editor-message]");
   const publishState = document.querySelector("[data-publish-state]");
-  const accentPreview = document.querySelector("[data-accent-preview]");
-  const accentName = document.querySelector("[data-accent-name]");
   const deleteButton = document.querySelector("[data-delete]");
   const deleteDialog = document.querySelector("[data-delete-dialog]");
   const deleteCopy = document.querySelector("[data-delete-copy]");
@@ -36,7 +34,6 @@
   const bodyInput = editorForm.elements.body;
   const formatInput = editorForm.elements.contentFormat;
   const statusLabels = { published: "已发布", draft: "草稿", archived: "已归档" };
-  const accentLabels = { mint: "薄荷绿", coral: "珊瑚橙", sky: "天空蓝" };
   const categoryAccents = { 项目经验: "mint", 生活随想: "sky" };
   const clipboardImageExtensions = {
     "image/jpeg": "jpg",
@@ -93,22 +90,6 @@
 
   const currentArticle = () => articles.find((article) => article.id === selectedId) || null;
 
-  const updateAccentPreview = () => {
-    const accent = editorForm.elements.accent.value;
-    accentPreview.className = `accent-preview accent-${accent}`;
-    accentName.textContent = accentLabels[accent] || accent;
-  };
-
-  const syncCategoryAccent = ({ useDefault = false } = {}) => {
-    const category = editorForm.elements.category.value;
-    const accentSelect = editorForm.elements.accent;
-    if (useDefault || category === "项目经验") {
-      accentSelect.value = categoryAccents[category] || "mint";
-    }
-    accentSelect.disabled = category === "项目经验";
-    updateAccentPreview();
-  };
-
   const updateFormatUi = () => {
     const markdown = formatInput.value === "markdown";
     formatNotice.hidden = markdown;
@@ -142,10 +123,8 @@
     editorForm.elements.category.value = "项目经验";
     editorForm.elements.date.value = formatToday();
     editorForm.elements.readTime.value = "5 分钟";
-    editorForm.elements.accent.value = "mint";
     editorForm.elements.status.value = "draft";
     formatInput.value = "markdown";
-    syncCategoryAccent();
     updateFormatUi();
     editorTitle.textContent = "新建文章";
     editorMessage.textContent = "";
@@ -155,11 +134,10 @@
 
   const fillEditor = (article) => {
     selectedId = article.id;
-    for (const name of ["category", "date", "readTime", "title", "excerpt", "body", "accent", "status"]) {
+    for (const name of ["category", "date", "readTime", "title", "excerpt", "body", "status"]) {
       editorForm.elements[name].value = article[name] || "";
     }
     formatInput.value = article.contentFormat === "markdown" ? "markdown" : "plain";
-    syncCategoryAccent();
     updateFormatUi();
     editorTitle.textContent = "编辑文章";
     editorMessage.textContent = "";
@@ -238,7 +216,7 @@
     excerpt: editorForm.elements.excerpt.value,
     body: pasteJobs.reduce((body, job) => body.replaceAll(job.placeholder, ""), bodyInput.value),
     contentFormat: formatInput.value,
-    accent: editorForm.elements.accent.value,
+    accent: categoryAccents[editorForm.elements.category.value] || "mint",
     status: forcedStatus || editorForm.elements.status.value,
   });
 
@@ -778,9 +756,6 @@
   });
   searchInput.addEventListener("input", renderList);
   filterSelect.addEventListener("change", renderList);
-  editorForm.elements.category.addEventListener("change", () => syncCategoryAccent({ useDefault: true }));
-  editorForm.elements.accent.addEventListener("change", updateAccentPreview);
-
   mediaForm.addEventListener("submit", (event) => {
     event.preventDefault();
     if (uploadBusy) return;

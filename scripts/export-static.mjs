@@ -16,9 +16,7 @@ const escapeHtml = (value) => String(value ?? "")
 
 const normalizeArticle = (article) => {
   const category = article.category === "生活随想" ? "生活随想" : "项目经验";
-  const accent = category === "项目经验"
-    ? "mint"
-    : ["mint", "coral", "sky"].includes(article.accent) ? article.accent : "sky";
+  const accent = category === "项目经验" ? "mint" : "sky";
   const contentFormat = article.contentFormat === "markdown" ? "markdown" : "plain";
   return { ...article, category, accent, contentFormat };
 };
@@ -42,7 +40,7 @@ const mediaConfigSource = existsSync(join(root, "docs", "media-config.json"))
   : join(root, "content", "media-config.json");
 const allArticles = JSON.parse(await readFile(articleSource, "utf8")).map(normalizeArticle);
 const mediaConfig = JSON.parse(await readFile(mediaConfigSource, "utf8"));
-const articles = allArticles.filter((article) => !article.status || article.status === "published");
+const articles = allArticles.filter((article) => article.status === "published");
 const visibleArticles = articles.slice(0, pageSize);
 const remainingCount = Math.max(articles.length - visibleArticles.length, 0);
 
@@ -68,7 +66,7 @@ await Promise.all([
   writeFile(join(outputRoot, "404.html"), html, "utf8"),
   writeFile(join(outputRoot, "site.css"), css, "utf8"),
   writeFile(join(outputRoot, ".nojekyll"), "", "utf8"),
-  writeFile(join(outputRoot, "articles.json"), `${JSON.stringify(allArticles, null, 2)}\n`, "utf8"),
+  writeFile(join(outputRoot, "articles.json"), `${JSON.stringify(articles, null, 2)}\n`, "utf8"),
   writeFile(join(outputRoot, "media-config.json"), `${JSON.stringify(mediaConfig, null, 2)}\n`, "utf8"),
   copyFile(join(root, "public", "static.js"), join(outputRoot, "static.js")),
   writeFile(join(outputRoot, "article.html"), articleHtml, "utf8"),

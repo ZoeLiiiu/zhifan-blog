@@ -42,7 +42,6 @@ const sessions = new Map();
 const loginAttempts = new Map();
 const categories = new Set(["项目经验", "生活随想"]);
 const statuses = new Set(["draft", "published", "archived"]);
-const accents = new Set(["mint", "coral", "sky"]);
 const contentFormats = new Set(["plain", "markdown"]);
 const maxBodyBytes = 1024 * 1024;
 const ossBucket = (process.env.OSS_BUCKET || "").trim();
@@ -200,9 +199,7 @@ function cleanBody(value, required = false) {
 
 function normalizeStoredArticle(article) {
   const category = article?.category === "生活随想" ? "生活随想" : "项目经验";
-  const accent = category === "项目经验"
-    ? "mint"
-    : accents.has(article?.accent) ? article.accent : "sky";
+  const accent = category === "项目经验" ? "mint" : "sky";
   const contentFormat = article?.contentFormat === "markdown" ? "markdown" : "plain";
   return { ...article, category, accent, contentFormat };
 }
@@ -210,13 +207,11 @@ function normalizeStoredArticle(article) {
 function parseArticle(payload, existing = null) {
   const category = payload.category ?? existing?.category;
   const status = payload.status ?? existing?.status ?? "draft";
-  const requestedAccent = payload.accent ?? existing?.accent ?? "mint";
   const contentFormat = payload.contentFormat ?? existing?.contentFormat ?? "markdown";
   if (!categories.has(category)) throw Object.assign(new Error("请选择有效的文章分类"), { statusCode: 400 });
   if (!statuses.has(status)) throw Object.assign(new Error("请选择有效的文章状态"), { statusCode: 400 });
-  if (!accents.has(requestedAccent)) throw Object.assign(new Error("请选择有效的文章配色"), { statusCode: 400 });
   if (!contentFormats.has(contentFormat)) throw Object.assign(new Error("请选择有效的正文格式"), { statusCode: 400 });
-  const accent = category === "项目经验" ? "mint" : requestedAccent;
+  const accent = category === "项目经验" ? "mint" : "sky";
 
   const article = {
     id: existing?.id || `article-${randomUUID()}`,

@@ -28,7 +28,7 @@
       <section class="hero section-shell" id="top">
         <div class="hero-copy">
           <p class="eyebrow"><span></span> 一个慢慢写下来的角落</p>
-          <h1>知道自己<br /><em>要回到哪里。</em></h1>
+          <h1>来煎<em>人寿</em></h1>
           <p class="hero-lede">这里是知返，记录工作里的方法、项目里的回声，以及日常生活中那些值得被留住的小事。</p>
           <div class="hero-actions">
             <a class="button button-primary" href="#latest">从最近一篇开始 <span aria-hidden="true">↓</span></a>
@@ -64,6 +64,22 @@
             <h2>从想读的方向，<br /><em>找到一篇文章。</em></h2>
           </div>
           <p class="section-intro">按时间更新，也可以按分类慢慢浏览。</p>
+        </div>
+
+        <div class="article-search" role="search" aria-label="检索文章" data-article-search-shell>
+          <label class="search-field">
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input
+              type="search"
+              placeholder="检索标题、摘要或正文"
+              aria-label="检索文章标题、摘要或正文"
+              autocomplete="off"
+              data-article-search
+              disabled
+            />
+            <button class="search-clear" type="button" data-search-clear hidden>清空</button>
+          </label>
+          <output class="search-status" data-search-status aria-live="polite">共 {{ARTICLE_COUNT}} 篇文章</output>
         </div>
 
         <div class="filter-row" aria-label="文章分类">

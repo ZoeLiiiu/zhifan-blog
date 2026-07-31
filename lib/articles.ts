@@ -87,8 +87,8 @@ export function isArticleAccent(value: unknown): value is Article["accent"] {
 }
 
 export function normalizeArticleAccent(category: ArticleCategory, value: unknown): Article["accent"] {
-  if (category === "项目经验") return "mint";
-  return isArticleAccent(value) ? value : categoryColors[category];
+  void value;
+  return categoryColors[category];
 }
 
 export function isArticleStatus(value: unknown): value is ArticleStatus {

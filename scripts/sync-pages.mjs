@@ -9,7 +9,12 @@ const [html, articles] = await Promise.all([
   readFile(join(source, "articles.json"), "utf8").then(JSON.parse),
 ]);
 
-if (!html.includes('id="latest"') || !html.includes("./article.html?id=")) {
+if (
+  !html.includes('id="latest"')
+  || !html.includes("./article.html?id=")
+  || !html.includes("<h1>来煎<em>人寿</em></h1>")
+  || !html.includes("data-article-search")
+) {
   throw new Error("拒绝同步：静态首页尚未通过结构检查");
 }
 if (

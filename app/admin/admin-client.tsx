@@ -85,7 +85,7 @@ function toDraft(article: Article): ArticleDraft {
     excerpt: article.excerpt,
     body: article.body,
     contentFormat: article.contentFormat === "markdown" ? "markdown" : "plain",
-    accent: article.accent,
+    accent: categoryAccent[article.category],
     status: article.status ?? "draft",
   };
 }
